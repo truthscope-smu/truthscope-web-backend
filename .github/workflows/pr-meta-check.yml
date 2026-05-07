@@ -1,0 +1,187 @@
+name: pr-meta-check
+
+# Validates PR-level input contract per .claude/rules/llm-behavior-gates.md (4 Behavior Gates).
+# Scope: PR body markers + Done section + scope-ack on Scope updates + trivial label vs diff.
+# Does NOT check execution/verification (F1.a-d) — that lives in validate.sh per plan-review-deep.md §1.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, labeled, unlabeled, reopened]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    if: (github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot') || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve PR number
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            if (!prNumber) core.setFailed('No PR context');
+            core.setOutput('number', prNumber);
+
+      - name: Fetch PR data
+        id: data
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        with:
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100
+            });
+            core.setOutput('body', pr.body || '');
+            core.setOutput('labels', JSON.stringify(pr.labels.map(l => l.name)));
+            core.setOutput('additions', pr.additions);
+            core.setOutput('deletions', pr.deletions);
+            core.setOutput('comments', JSON.stringify(comments.map(c => c.body)));
+            core.setOutput('base_sha', pr.base.sha);
+            core.setOutput('head_sha', pr.head.sha);
+
+      - name: Validate SAFE_OP marker block + Done section (Gate 1, Gate 2)
+        env:
+          BODY: ${{ steps.data.outputs.body }}
+        run: |
+          set -euo pipefail
+          missing=()
+          grep -q '<!-- SAFE_OP_START -->' <<<"$BODY" || missing+=('SAFE_OP_START marker')
+          grep -q '<!-- SAFE_OP_END -->' <<<"$BODY" || missing+=('SAFE_OP_END marker')
+          block=$(awk '/<!-- SAFE_OP_START -->/,/<!-- SAFE_OP_END -->/' <<<"$BODY" || true)
+          for field in 'Assumptions:' 'Scope:' 'Out-of-scope:'; do
+            grep -q "$field" <<<"$block" || missing+=("SAFE_OP field: $field")
+          done
+          grep -qE '^##[[:space:]]+Done' <<<"$BODY" || missing+=('## Done section')
+          if [ ${#missing[@]} -gt 0 ]; then
+            printf '::error ::Missing required: %s\n' "${missing[*]}"
+            echo 'See .claude/rules/llm-behavior-gates.md for the 4 Behavior Gates contract.'
+            exit 1
+          fi
+          echo 'PR body markers and Done section: OK'
+
+      - name: Validate Done/SAFE_OP content not template placeholder (Gate 1, Gate 2)
+        env:
+          BODY: ${{ steps.data.outputs.body }}
+        run: |
+          set -euo pipefail
+          # Done section content (between '## Done' and next '##' header)
+          done_section=$(awk '/^##[[:space:]]+Done/{flag=1;next} /^##[[:space:]]/{flag=0} flag' <<<"$BODY" || true)
+          if grep -qE '\bTBD\b|\bTODO\b' <<<"$done_section"; then
+            echo "::error ::Done section contains 'TBD' or 'TODO' - replace with actual content (Gate 1)"
+            exit 1
+          fi
+          # Template placeholder text in Done (e.g. unfilled checkboxes still showing the bracketed hint)
+          if grep -qE '\[한 줄 설명\]|\[입력 / 출력|\[파일 경로\]|\[파일 / 엔드포인트|\[산출물 타입에' <<<"$done_section"; then
+            echo "::error ::Done section contains unfilled template placeholders - replace with actual content (Gate 1)"
+            exit 1
+          fi
+          # SAFE_OP block content
+          block=$(awk '/<!-- SAFE_OP_START -->/,/<!-- SAFE_OP_END -->/' <<<"$BODY" || true)
+          if grep -qE '\[기본값에서 벗어난|\[변경할 파일|\[의도적 미변경' <<<"$block"; then
+            echo "::error ::SAFE_OP block contains unfilled template placeholders - replace with actual content (Gate 2)"
+            exit 1
+          fi
+          echo 'Done/SAFE_OP placeholder check: OK'
+
+      - name: Validate F1 anchor exists in plan-review-deep.md (cross-drift guard)
+        run: |
+          set -euo pipefail
+          # llm-behavior-gates.md delegates execution/verification to F1.a-d in plan-review-deep.md Section 1.
+          # If the anchor breaks (file rename, section header change, keyword removal),
+          # the cross-reference becomes silently broken.
+          if [ ! -f .claude/rules/plan-review-deep.md ]; then
+            echo "::error ::plan-review-deep.md missing - F1 delegation broken"
+            exit 1
+          fi
+          if ! grep -qE '^## 1\.' .claude/rules/plan-review-deep.md; then
+            echo "::error ::Section 1 header anchor missing in plan-review-deep.md - F1 delegation broken"
+            exit 1
+          fi
+          for sub in 'F1\.a' 'F1\.b' 'F1\.c' 'F1\.d'; do
+            grep -qE "$sub" .claude/rules/plan-review-deep.md \
+              || { echo "::error ::$sub keyword missing from plan-review-deep.md - F1 contract broken"; exit 1; }
+          done
+          echo 'F1 anchor + 4 subfacet keywords verified'
+
+      - name: Detect new files + dependency manifest changes
+        id: diff
+        env:
+          BASE_SHA: ${{ steps.data.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.data.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          new_files=$(git diff --name-only --diff-filter=A "$BASE_SHA".."$HEAD_SHA" | wc -l)
+          manifest_changed=0
+          for m in build.gradle build.gradle.kts pom.xml package.json package-lock.json yarn.lock pnpm-lock.yaml pyproject.toml poetry.lock requirements.txt Pipfile.lock; do
+            git diff --name-only "$BASE_SHA".."$HEAD_SHA" | grep -qx "$m" && manifest_changed=1 || true
+          done
+          echo "new_files=$new_files" >> "$GITHUB_OUTPUT"
+          echo "manifest_changed=$manifest_changed" >> "$GITHUB_OUTPUT"
+
+      - name: Validate trivial label vs auto-conditions
+        env:
+          LABELS: ${{ steps.data.outputs.labels }}
+          ADDITIONS: ${{ steps.data.outputs.additions }}
+          DELETIONS: ${{ steps.data.outputs.deletions }}
+          NEW_FILES: ${{ steps.diff.outputs.new_files }}
+          MANIFEST_CHANGED: ${{ steps.diff.outputs.manifest_changed }}
+        run: |
+          set -euo pipefail
+          loc_total=$(( ADDITIONS + DELETIONS ))
+          has_trivial=$(jq -r '. | index("trivial") // empty' <<<"$LABELS")
+          conditions_met=true
+          [ "$loc_total" -le 10 ] || conditions_met=false
+          [ "$NEW_FILES" -eq 0 ] || conditions_met=false
+          [ "$MANIFEST_CHANGED" -eq 0 ] || conditions_met=false
+          if [ -n "$has_trivial" ] && [ "$conditions_met" = false ]; then
+            echo "::error ::Label 'trivial' set but conditions unmet (LOC=$loc_total, new_files=$NEW_FILES, manifest=$MANIFEST_CHANGED)"
+            exit 1
+          fi
+          if [ -z "$has_trivial" ] && [ "$conditions_met" = true ]; then
+            echo "::warning ::Trivial conditions met but 'trivial' label not set. Consider adding the label."
+          fi
+          echo 'Trivial label check: OK'
+
+      - name: Validate Scope update -> scope-ack required
+        env:
+          LABELS: ${{ steps.data.outputs.labels }}
+          COMMENTS: ${{ steps.data.outputs.comments }}
+        run: |
+          set -euo pipefail
+          scope_update=$(jq -r '.[]' <<<"$COMMENTS" | grep -c 'Scope 업데이트:' || true)
+          if [ "$scope_update" -gt 0 ]; then
+            has_label=$(jq -r '. | index("scope-ack") // empty' <<<"$LABELS")
+            has_comment=$(jq -r '.[]' <<<"$COMMENTS" | grep -c 'ACK SCOPE' || true)
+            if [ -z "$has_label" ] && [ "$has_comment" -eq 0 ]; then
+              echo "::error ::Scope update comment present but no 'scope-ack' label or 'ACK SCOPE' comment found"
+              exit 1
+            fi
+          fi
+          echo 'Scope-ack check: OK'
+
+      - name: Summary
+        run: |
+          echo 'PR meta contract checks passed (4 Behavior Gates input form).'
+          echo 'Execution/verification (F1.a-d) is enforced separately by validate.sh / CI workflow.'
+          echo 'See .claude/rules/llm-behavior-gates.md and ADR-006-llm-behavior-gates.md.'

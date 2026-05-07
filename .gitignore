@@ -58,7 +58,8 @@ logs/
 # ===========================
 # Claude / Plans / Context (팀 내부 전용)
 # ===========================
-.claude/
+.claude/*
+!.claude/rules/
 .plans/
 context/
 
