@@ -10,9 +10,9 @@ authors: ["KWONSEOK02"]
 
 ## Context
 
-5/11 운영 적용 시도 중 발견: 운영 Supabase DB는 `articles` 등 모든 테이블이 부재 (5/11 SELECT 검증). BE는 `ddl-auto: none` + Flyway/Liquibase 의존성 0건 + `supabase/migrations/` 디렉토리 부재 → BE 첫 배포 시 schema bootstrap 수단 없음. Manual SQL capsule (`docs/db/manual/2026-05-12-*.sql`)은 "기존 테이블에 컬럼 추가" 용도로 설계 → first-bootstrap 대응 불가.
+2026-05-11 운영 적용 시도 중 발견: 운영 Supabase DB는 `articles` 등 모든 테이블이 부재 (2026-05-11 SELECT 검증). BE는 `ddl-auto: none` + Flyway/Liquibase 의존성 0건 + `supabase/migrations/` 디렉토리 부재 → BE 첫 배포 시 schema bootstrap 수단 없음. Manual SQL capsule (`docs/db/manual/2026-05-12-*.sql`)은 "기존 테이블에 컬럼 추가" 용도로 설계 → first-bootstrap 대응 불가.
 
-Issue #52 (Sprint 3 일정)를 5/11 사고로 조기 진입. Codex 5.5 5/10 thread `019e11bd` Q4가 Supabase migration native workflow 1순위 검토 권고.
+Issue #52 (Sprint 3 일정)를 2026-05-11 사고로 조기 진입. Codex 5.5 2026-05-10 thread `019e11bd` Q4가 Supabase migration native workflow 1순위 검토 권고.
 
 관련 ADR:
 - ADR-006: LLM behavior gates (PR-level input contract)
@@ -25,7 +25,7 @@ We will adopt **Option D (Hybrid B+A)**:
 - **Secondary**: Supabase CLI opt-in (Branching/RLS 등 BaaS 기능)은 Sprint 3+1 별도 ADR로 결정
 
 핵심 이유:
-1. Spring Boot 부팅 시 JPA 초기화 전 Flyway 자동 실행 → schema/code 동기화 framework-level 보장 (5/11 사고 재발 차단)
+1. Spring Boot 부팅 시 JPA 초기화 전 Flyway 자동 실행 → schema/code 동기화 framework-level 보장 (2026-05-11 사고 재발 차단)
 2. PostgreSQL 단일 DB 환경에서 Liquibase의 DB-agnostic DSL pay rent 부족
 3. plain SQL 학습 곡선이 8주 academic 팀에 적합 (Fowler+Fontaine 거장 컨센서스, Codex thread `019e12af`)
 4. 기존 manual SQL의 "5종 표준" 자산 (lock_timeout + RAISE guard + ANALYZE + rollback policy)을 V*.sql로 직접 carry-over 가능
@@ -40,7 +40,7 @@ We will adopt **Option D (Hybrid B+A)**:
 
 ### 긍정 (Benefits)
 
-- Spring Boot 부팅 = schema 동기화 자동 보장 (5/11 사고 재발 차단)
+- Spring Boot 부팅 = schema 동기화 자동 보장 (2026-05-11 사고 재발 차단)
 - Plain SQL 명명 규칙 (`V<version>__<desc>.sql`) — 학습 곡선 최소
 - BE PR review와 schema 변경 review가 같은 channel (gh PR review)
 - Testcontainers 통합 자동 (`@ServiceConnection` + Singleton container 패턴 기존 그대로)
@@ -60,9 +60,9 @@ We will adopt **Option D (Hybrid B+A)**:
 
 | 대안 | 기각 이유 |
 |------|----------|
-| **A. Supabase CLI primary** | Spring Boot 부팅 통합 부재 (외부 단계) — 5/11 사고 재발 위험. CLI 학습 부담 추가. (Abandonment Cost: 5 — compromise C5-1로 보존) |
+| **A. Supabase CLI primary** | Spring Boot 부팅 통합 부재 (외부 단계) — 2026-05-11 사고 재발 위험. CLI 학습 부담 추가. (Abandonment Cost: 5 — compromise C5-1로 보존) |
 | **C. Liquibase** | DB-agnostic DSL pay rent 부족 (PostgreSQL 단일). XML/YAML 학습 부담이 8주 일정에 부담. 무료 rollback은 "forward V*.sql reverse" 패턴으로 충분히 대체 가능. (Abandonment Cost: 3) |
-| **D. Manual SQL capsule (현 상태)** | 5/11 사고가 first-bootstrap 한계 증명. Spring Boot 부팅 동기화 부재. (Abandonment Cost: 1 — one-off ops로 부수 보존만) |
+| **D. Manual SQL capsule (현 상태)** | 2026-05-11 사고가 first-bootstrap 한계 증명. Spring Boot 부팅 동기화 부재. (Abandonment Cost: 1 — one-off ops로 부수 보존만) |
 
 ## Abandonment Cost
 
@@ -75,7 +75,7 @@ We will adopt **Option D (Hybrid B+A)**:
 
 Threshold policy: 5+ requires compromise design. Option A score 5 → C5-1 compromise.
 
-Rubric: `[[Guide/Abandonment-Cost-Scoring-Rubric]]` (옵시디언 vault, Phase 13c + DDD/TDD 통합 + Phase 52 본 ADR 3번째 적용).
+Rubric: `Guide/Abandonment-Cost-Scoring-Rubric` (옵시디언 vault 노트 — GitHub 외부 참조. Phase 13c + DDD/TDD 통합 + Phase 52 본 ADR 3번째 적용).
 
 ## References
 
@@ -107,3 +107,4 @@ Rubric: `[[Guide/Abandonment-Cost-Scoring-Rubric]]` (옵시디언 vault, Phase 1
 |------|----------|
 | 2026-05-11 | Initial draft (Step 5 ADR 작성, PLAN.md T8 carry-over) |
 | 2026-05-11 | Status: Accepted (Step 4 plan-review-deep Round 1 Critical-0 convergence + PROCEED-WITH-CONDITIONS, 자가 검증 채택으로 Round 2 생략) |
+| 2026-05-11 | CodeRabbit Round 1 Actionable 적용: ISO 날짜 통일 (`5/11`/`5/10` → `2026-05-11`/`2026-05-10`), Obsidian wiki link → backtick text |
