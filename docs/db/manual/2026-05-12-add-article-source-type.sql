@@ -15,7 +15,7 @@
 --   `IF NOT EXISTS`와 `WHERE source_type IS NULL` 두 가드를 두어 여러 번 실행해도 안전.
 --   배포 자동화 / 수동 재실행 / 롤백 후 재시도 어떤 시나리오에서도 데이터 손상 없음.
 --
--- Verification (배포 직후 PM 확인) — 기존 2건에서 5건으로 확장 (2026-05-10 Codex/Opus cross-review):
+-- Verification (배포 직후 PM 확인) — 기존 2건에서 6건으로 확장 (2026-05-10 Codex/Opus cross-review):
 --   (1) schema shape 정확 확인:
 --      SELECT table_schema, table_name, column_name, data_type,
 --             character_maximum_length, is_nullable, column_default
@@ -86,8 +86,9 @@ BEGIN
       AND data_type = 'character varying'
       AND character_maximum_length = 20
       AND is_nullable = 'YES'
+      AND column_default IS NULL
   ) THEN
-    RAISE EXCEPTION 'articles.source_type schema mismatch (expected varchar(20) nullable)';
+    RAISE EXCEPTION 'articles.source_type schema mismatch (expected varchar(20) nullable, no default)';
   END IF;
 END $$;
 
