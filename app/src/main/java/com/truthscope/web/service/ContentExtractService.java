@@ -56,7 +56,8 @@ public class ContentExtractService {
   private final SsrfGuard ssrfGuard;
 
   /**
-   * 주어진 URL에서 기사 본문을 추출한다. SsrfGuard로 사전 검증 후 Apache HttpClient 5로 fetch + Jsoup 파싱.
+   * 주어진 URL에서 기사 본문을 추출한다. SsrfGuard로 사전 검증 후 새 overload {@link
+   * #extract(SsrfGuard.ValidatedTarget)}에 위임. 호출자가 외부 검증을 수행하지 않은 경우의 단순 진입점.
    *
    * @param url 뉴스 기사 URL (http/https만 허용, 사설망/loopback/문서화 대역 차단)
    * @return 제목, 본문, 언어, 도메인이 담긴 ExtractedArticle
@@ -64,6 +65,22 @@ public class ContentExtractService {
   @Transactional(readOnly = true)
   public ExtractedArticle extract(String url) {
     SsrfGuard.ValidatedTarget initialTarget = ssrfGuard.validateAndResolve(url);
+    return extract(initialTarget);
+  }
+
+  /**
+   * 이미 SsrfGuard로 검증된 target에서 본문을 추출한다. {@link com.truthscope.web.adapter.input.UrlInputAdapter}
+   * 같은 input port에서 검증을 한 번만 수행하고 결과를 그대로 전달하여 중복 호출을 제거한다.
+   *
+   * <p>D-4 LOCK (2026-05-10, Codex thread {@code 019e1096}): boundary는 input adapter → fetch
+   * service에 제한. controller/request DTO까지 ValidatedTarget을 올리지 않는다.
+   *
+   * @param initialTarget {@link SsrfGuard#validateAndResolve(String)}의 반환값 (정규화된 host + pinned
+   *     addresses)
+   * @return 제목, 본문, 언어, 도메인이 담긴 ExtractedArticle
+   */
+  @Transactional(readOnly = true)
+  public ExtractedArticle extract(SsrfGuard.ValidatedTarget initialTarget) {
     FetchOutcome outcome = fetchWithRedirectGuard(initialTarget);
     String domain = outcome.finalUri().getHost(); // R2-3 fix: redirect 후 final URI host
 

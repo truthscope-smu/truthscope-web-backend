@@ -64,3 +64,6 @@ context/
 
 # spike code(throwaway 연구)는 2026-05-04 워크스페이스 레벨 `truthscope-web/spike/`로 분리됨.
 # BE repo에서는 더 이상 추적/제외 대상이 아니다. 상세: spike/README.md.
+# code-review-graph local index (not committed)
+.code-review-graph/
+
