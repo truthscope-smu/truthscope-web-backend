@@ -4,6 +4,7 @@ import com.truthscope.web.dto.response.ExtractedArticle;
 import com.truthscope.web.exception.ExtractionFailedException;
 import com.truthscope.web.exception.SsrfBlockedException;
 import com.truthscope.web.html.ArticleHtmlParser;
+import com.truthscope.web.security.PinnedDnsResolver;
 import com.truthscope.web.security.SsrfGuard;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -11,10 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import lombok.RequiredArgsConstructor;
-import org.apache.hc.client5.http.DnsResolver;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -249,37 +248,6 @@ public class ContentExtractService {
         .disableRedirectHandling()
         .setConnectionReuseStrategy((request, response, context) -> false)
         .build();
-  }
-
-  /**
-   * R2-1/CX-16: DnsResolver는 functional interface 아님 (resolve + resolveCanonicalHostname). 정적 클래스 +
-   * defensive copy.
-   */
-  static final class PinnedDnsResolver implements DnsResolver {
-    private final InetAddress[] pinned;
-    private final String approvedHost;
-
-    PinnedDnsResolver(InetAddress[] pinned, String approvedHost) {
-      // SpotBugs EI_EXPOSE_REP2 회피 + 외부 mutation 방어
-      this.pinned = pinned.clone();
-      this.approvedHost = approvedHost;
-    }
-
-    @Override
-    public InetAddress[] resolve(String host) throws UnknownHostException {
-      if (host.equalsIgnoreCase(approvedHost)) {
-        return pinned.clone(); // SpotBugs EI_EXPOSE_REP 회피
-      }
-      throw new UnknownHostException("Unauthorized host (SSRF guard): " + host);
-    }
-
-    @Override
-    public String resolveCanonicalHostname(String host) throws UnknownHostException {
-      if (host.equalsIgnoreCase(approvedHost)) {
-        return approvedHost;
-      }
-      throw new UnknownHostException("Unauthorized host (SSRF guard): " + host);
-    }
   }
 
   /** CX-22: Jsoup의 charset 자동 감지 활용 (META + content sniffing). */

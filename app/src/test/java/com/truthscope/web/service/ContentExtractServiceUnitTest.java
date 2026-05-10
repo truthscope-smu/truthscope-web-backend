@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.truthscope.web.exception.BadRequestException;
 import com.truthscope.web.exception.ExtractionFailedException;
 import com.truthscope.web.exception.SsrfBlockedException;
+import com.truthscope.web.security.PinnedDnsResolver;
 import com.truthscope.web.security.SsrfGuard;
 import com.truthscope.web.security.SsrfGuard.ValidatedTarget;
 import java.net.InetAddress;
@@ -148,8 +149,7 @@ class ContentExtractServiceUnitTest {
   @DisplayName("DnsResolver pinning 검증 - 다른 host 요청 시 UnknownHostException (CX-13/CX-20)")
   void dnsResolverPinning() throws Exception {
     InetAddress[] pinned = new InetAddress[] {InetAddress.getByName("8.8.8.8")};
-    ContentExtractService.PinnedDnsResolver resolver =
-        new ContentExtractService.PinnedDnsResolver(pinned, "news.example.com");
+    PinnedDnsResolver resolver = new PinnedDnsResolver(pinned, "news.example.com");
 
     assertThat(resolver.resolve("news.example.com")).isEqualTo(pinned);
     assertThat(resolver.resolveCanonicalHostname("news.example.com")).isEqualTo("news.example.com");
