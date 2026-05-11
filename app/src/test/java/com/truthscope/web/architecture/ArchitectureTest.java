@@ -38,10 +38,12 @@ class ArchitectureTest {
           .definedBy("..config..")
           .optionalLayer("Exception")
           .definedBy("..exception..")
+          .optionalLayer("Adapter")
+          .definedBy("..adapter..")
           .whereLayer("Controller")
           .mayNotBeAccessedByAnyLayer()
           .whereLayer("Service")
-          .mayOnlyBeAccessedByLayers("Controller")
+          .mayOnlyBeAccessedByLayers("Controller", "Adapter")
           .whereLayer("Repository")
           .mayOnlyBeAccessedByLayers("Service");
 
@@ -128,8 +130,7 @@ class ArchitectureTest {
   static final ArchRule corePackagesShouldNotDependOnAppLayer =
       noClasses()
           .that()
-          .resideInAnyPackage(
-              "..entity..", "..dto..", "..converter..", "..exception..", "..adapter..")
+          .resideInAnyPackage("..entity..", "..dto..", "..converter..", "..exception..")
           .should()
           .dependOnClassesThat()
           .resideInAnyPackage(
@@ -141,7 +142,9 @@ class ArchitectureTest {
               "..html..")
           .allowEmptyShould(true)
           .because(
-              "ADR-006: core 모듈(entity/dto/converter/exception/adapter)은 app 모듈(controller/service/repository/config/security/html)에 의존 금지. core가 OSS jar로 단독 배포 가능해야 함.");
+              "ADR-006 D1: core 모듈(entity/dto/converter/exception)은 app 모듈에 의존 금지 — core jar가 OSS 단독 배포 가능해야 함. "
+                  + "adapter 패키지는 모듈에 따라 위치가 다름 — input port 구현체는 app 모듈(service/security 의존 OK), "
+                  + "외부 데이터소스 인터페이스는 core 모듈에 위치할 수 있음. core/adapter 추가 시 별도 룰로 보호 (BE #22 진입 시 갱신).");
 
   // ── DTO record 강제 (CONVENTIONS: 요청 DTO는 record 타입) ──
 
