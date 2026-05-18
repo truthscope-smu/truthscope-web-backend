@@ -25,7 +25,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @Testcontainers(disabledWithoutDocker = true)
-@TestPropertySource(properties = {"spring.jpa.hibernate.ddl-auto=create-drop"})
+@TestPropertySource(
+    properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false"})
 public abstract class AbstractIntegrationTest {
 
   @ServiceConnection static final PostgreSQLContainer<?> POSTGRES;
