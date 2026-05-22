@@ -8,6 +8,15 @@ spring:
     password: ${SUPABASE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Supabase public 스키마는 기본 객체가 있어 "non-empty" — Flyway가 history 없으면 거부함.
+    # baseline-on-migrate로 history 테이블 생성 + baseline 마커 삽입 후 V1 적용.
+    # baseline-version=0 필수: 기본값 1이면 V1(version 1)이 "baseline 초과만 적용" 규칙에 걸려 스킵됨.
+    baseline-on-migrate: true
+    baseline-version: 0
+
   jpa:
     hibernate:
       ddl-auto: none
