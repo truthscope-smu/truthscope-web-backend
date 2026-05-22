@@ -14,4 +14,7 @@ dependencies {
 	// Spring Data JPA Auditing (@CreatedDate, @LastModifiedDate, AuditingEntityListener)
 	// Phase 1 compromise — 이 의존만으로는 Spring Boot/IoC 미사용
 	api 'org.springframework.data:spring-data-jpa'
+
+	// 테스트 assertion — app 모듈 idiom(AssertJ) 정합. spring-boot BOM이 버전 관리.
+	testImplementation 'org.assertj:assertj-core'
 }
