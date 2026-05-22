@@ -17,6 +17,16 @@ public record CoverageSummary(
     int tier3Count) {
 
   public CoverageSummary {
+    if (scorableCount < 0
+        || excludedCount < 0
+        || insufficientCount < 0
+        || timeSensitiveCount < 0
+        || outOfScopeCount < 0
+        || tier1Count < 0
+        || tier2Count < 0
+        || tier3Count < 0) {
+      throw new IllegalArgumentException("CoverageSummary의 모든 count는 0 이상이어야 한다");
+    }
     if (excludedCount != insufficientCount + timeSensitiveCount + outOfScopeCount) {
       throw new IllegalArgumentException(
           "excludedCount는 사유별 count의 합이어야 한다: excluded=" + excludedCount);

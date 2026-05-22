@@ -31,6 +31,9 @@ public record ClaimVerificationSignal(
   public ClaimVerificationSignal {
     Objects.requireNonNull(claimId, "claimId는 null일 수 없다");
     Objects.requireNonNull(tier, "tier는 null일 수 없다");
+    if (tier < 1 || tier > 3) {
+      throw new IllegalArgumentException("tier는 1..3이어야 한다(3-Tier Cascade): tier=" + tier);
+    }
     Objects.requireNonNull(status, "status는 null일 수 없다");
     Objects.requireNonNull(sourceTransparency, "sourceTransparency는 null일 수 없다");
     if (status == ClaimScoreStatus.SCORABLE) {

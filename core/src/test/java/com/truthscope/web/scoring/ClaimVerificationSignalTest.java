@@ -133,6 +133,35 @@ class ClaimVerificationSignalTest {
         .withMessageContaining("tier는 null일 수 없다");
   }
 
+  // (8) tier 범위 밖(1..3) → IllegalArgumentException — CodeRabbit F2 반영
+  @Test
+  void tier_0이면_IllegalArgumentException() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                new ClaimVerificationSignal(
+                    CLAIM_ID,
+                    (short) 0,
+                    50,
+                    ClaimScoreStatus.SCORABLE,
+                    SourceTransparency.EXPLICIT))
+        .withMessageContaining("tier는 1..3이어야 한다");
+  }
+
+  @Test
+  void tier_4이면_IllegalArgumentException() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                new ClaimVerificationSignal(
+                    CLAIM_ID,
+                    (short) 4,
+                    50,
+                    ClaimScoreStatus.SCORABLE,
+                    SourceTransparency.EXPLICIT))
+        .withMessageContaining("tier는 1..3이어야 한다");
+  }
+
   @Test
   void status_null이면_NullPointerException() {
     assertThatNullPointerException()
