@@ -1,5 +1,6 @@
 package com.truthscope.web.entity;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -32,6 +33,12 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 @Builder
 @AllArgsConstructor
+@SuppressFBWarnings(
+    value = {"EI_EXPOSE_REP", "EI_EXPOSE_REP2"},
+    justification =
+        "JPA Entity는 entity-rules.md상 Lombok @Getter 더하기 @AllArgsConstructor 의무. "
+            + "JSONB Map<String, Object>는 Hibernate 6 @JdbcTypeCode(SqlTypes.JSON) 표준 "
+            + "매핑 단계로 내부 mutable Map 노출은 JPA dirty checking 정합 필수.")
 public class DataSourceSnapshot {
 
   @Id
