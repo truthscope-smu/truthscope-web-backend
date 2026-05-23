@@ -68,7 +68,7 @@ class ClaimExtractorStubServiceTest {
 
     @Test
     @DisplayName("앞뒤_공백_+_내부_연속_공백이_다른_두_claim은_정규화_후_equals로_동일하다")
-    void duplicateInput_returnsDeduped() {
+    void 앞뒤_공백_내부_공백이_다른_두_claim은_정규화_후_equals로_동일하다() {
       ExtractedClaim raw1 =
           ExtractedClaim.builder()
               .text("  정부는   2026년    경제성장률을   발표했다.  ")
@@ -122,6 +122,21 @@ class ClaimExtractorStubServiceTest {
       assertThatThrownBy(() -> extractor.normalize(raw))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("text");
+    }
+
+    @Test
+    @DisplayName("sortOrder가_null이면_IllegalArgumentException을_던진다")
+    void sortOrder가_null이면_IllegalArgumentException을_던진다() {
+      ExtractedClaim raw =
+          ExtractedClaim.builder()
+              .text("주장 본문")
+              .importance(ClaimImportance.HIGH)
+              .sortOrder(null)
+              .build();
+
+      assertThatThrownBy(() -> extractor.normalize(raw))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("sortOrder");
     }
   }
 }

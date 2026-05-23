@@ -39,9 +39,14 @@ public interface ClaimExtractorService {
    * <p>정규화 이후 의미가 동일한 두 claim은 {@link ExtractedClaim#equals(Object)}로 같다고 판정된다 — 후속 dedupe 단계는
    * {@code Stream.distinct()} 또는 {@code Set} 자료구조로 가능하다.
    *
+   * <p>contract: {@code raw.text}와 {@code raw.sortOrder}는 non-null 의무. {@code raw.importance}만 null
+   * 허용(MEDIUM으로 보강). {@code sortOrder}는 정렬 키 의도로 도입됐고 무의미한 기본값이 없으므로 호출자가 명시해야 한다 — Phase 55 점수 산식이
+   * 향후 sortOrder를 정렬 키로 사용해도 NPE/잘못된 순서가 발생하지 않도록 strict 정책을 유지한다.
+   *
    * @param raw 정규화 전 claim
    * @return 정규화된 claim (입력 객체와 같은 인스턴스가 아닐 수 있다)
-   * @throws IllegalArgumentException {@code raw} 또는 {@code raw.text}가 null인 경우
+   * @throws IllegalArgumentException {@code raw}, {@code raw.text}, 또는 {@code raw.sortOrder}가 null인
+   *     경우
    */
   ExtractedClaim normalize(ExtractedClaim raw);
 }
