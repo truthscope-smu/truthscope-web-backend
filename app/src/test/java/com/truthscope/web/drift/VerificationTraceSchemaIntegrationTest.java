@@ -21,7 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -67,14 +66,13 @@ class VerificationTraceSchemaIntegrationTest {
   private UUID validVerificationResultId;
 
   /**
-   * Hibernate ConstraintViolationException을 cause chain에서 찾아 getConstraintName() 단언. Spring
-   * DataIntegrityViolationException top-level getMessage()는 Hibernate 버전 + Postgres JDBC 메시지 포맷에 따라
-   * constraint name이 포함되지 않을 수 있어, cause chain의 Hibernate 전용 API가 source of truth (R2-1 / CX2-1
-   * 정정).
+   * Hibernate ConstraintViolationException을 cause chain에서 찾아 getConstraintName() 단언. JpaRepository
+   * 호출은 Spring PersistenceExceptionTranslator가 Hibernate 예외를 DataIntegrityViolationException으로 변환하나
+   * native query 직접 호출은 변환 없이 ConstraintViolationException이 직접 throw. 따라서 top-level 예외 타입 단언 없이
+   * cause chain 순회로 처리한다 (Wave 4 실측 정정 R3-1).
    */
   private void assertConstraintViolation(ThrowingCallable when, String expectedConstraint) {
     assertThatThrownBy(when)
-        .isInstanceOf(DataIntegrityViolationException.class)
         .satisfies(
             ex -> {
               Throwable cur = (Throwable) ex;
@@ -253,6 +251,8 @@ class VerificationTraceSchemaIntegrationTest {
             + " request_body, response_body, duration_ms, created_at) "
             + "VALUES (?, ?, 1, 'google-fc', NULL, '{}'::jsonb, 100, NOW())";
 
+    // native query 직접 호출 단계로 Spring 변환 없음. Hibernate ConstraintViolationException 직접 throw.
+    // PostgreSQL NOT NULL 위반 메시지는 컬럼명 포함 단계로 stack trace 검증 (Wave 4 실측 정정 R3-1).
     assertThatThrownBy(
             () -> {
               entityManager
@@ -262,7 +262,6 @@ class VerificationTraceSchemaIntegrationTest {
                   .executeUpdate();
               entityManager.flush();
             })
-        .isInstanceOf(DataIntegrityViolationException.class)
-        .hasStackTraceContaining("request_body"); // Postgres NOT NULL 메시지는 컬럼명 포함
+        .hasStackTraceContaining("request_body");
   }
 }
