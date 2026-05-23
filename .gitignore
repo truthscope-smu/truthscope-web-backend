@@ -37,6 +37,14 @@ application-local.yml
 **/application-local.yml
 
 # ===========================
+# Service Account Credentials (NEVER commit)
+# ===========================
+keys/
+**/keys/
+**/*-sa.json
+**/gdelt-*.json
+
+# ===========================
 # Gradle Wrapper (추적 필요)
 # ===========================
 # gradle/wrapper/gradle-wrapper.jar는 추적함 (팀원 환경 동일성)
