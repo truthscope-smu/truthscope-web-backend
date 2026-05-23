@@ -25,7 +25,7 @@
 - `@Getter` + `@NoArgsConstructor(access = PROTECTED)` + `@Builder(access = PRIVATE)` + `@AllArgsConstructor(access = PRIVATE)`
 - 변경은 비즈니스 메서드로 (`attachTo()` 같은 도메인 의도 명시)
 - `@GeneratedValue(strategy = GenerationType.UUID)` 기본 (Member는 Supabase Auth UUID 예외)
-- `extends BaseTimeEntity` (ApiUsageLog만 예외)
+- `extends BaseTimeEntity` — 예외 3종: `ApiUsageLog` (immutable log), `VerificationTrace` (D3 재현성 audit, `created_at`만 필요 단계로 `updated_at` 무의미), `DataSourceSnapshot` (`retrieved_at` 독자 의미론). 예외는 `@CreationTimestamp` 직접 사용 (Phase 19 BE #21 ADR-008 D3 정합)
 - 상세: `docs/guides/backend-jpa-entity-template.md`
 
 ### DDD/TDD aggregate (Phase 21 학습 reference)
@@ -113,7 +113,7 @@
 🔒fix(article): URL invariant validateUrl 예외 메시지에서 원본 URL 제거
 ```
 
-Co-authored-by 의무 (PM 본인): `Co-authored-by: gs07103 <gwonseok02@gmail.com>`
+Co-authored-by 의무 (PM 본인): `Co-authored-by: KWONSEOK02 <gwonseok02@gmail.com>` (2026-05-23 통일, 이전 `gs07103` deprecated)
 
 ---
 
