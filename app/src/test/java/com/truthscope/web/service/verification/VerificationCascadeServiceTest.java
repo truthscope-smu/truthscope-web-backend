@@ -3,6 +3,7 @@ package com.truthscope.web.service.verification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -97,7 +98,6 @@ class VerificationCascadeServiceTest {
   void cascade_returnsSignalListForGivenClaims() {
     ClaimDraft draft = buildDraft("정부는 2025년 GDP 3% 성장을 발표했다.");
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(googleFcAdapter.findMatching(anyString())).thenReturn(Optional.empty());
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
@@ -129,15 +129,26 @@ class VerificationCascadeServiceTest {
   @DisplayName("cascade_routesNoCacheToTier2")
   void cascade_routesNoCacheToTier2() {
     ClaimDraft draft = buildDraft("캐시 없는 claim");
+    EvidenceSnapshot snap1 =
+        new EvidenceSnapshot("https://example.com/a", "pub-a", "title-a", "SUPPORTED", Map.of());
+    EvidenceSnapshot snap2 =
+        new EvidenceSnapshot("https://example.com/b", "pub-b", "title-b", "SUPPORTED", Map.of());
+    EvidenceSnapshot snap3 =
+        new EvidenceSnapshot("https://example.com/c", "pub-c", "title-c", "SUPPORTED", Map.of());
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(googleFcAdapter.findMatching(anyString())).thenReturn(Optional.empty());
-    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
-    when(tier3Validator.validate(any())).thenReturn(Optional.empty());
+    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of(snap1, snap2, snap3));
+    when(urlValidator.validate(anyString())).thenReturn(true);
+    when(policyScorer.calculate(any(), anyList(), any())).thenReturn(Optional.of(75));
 
-    service.cascade(List.of(draft));
+    List<ClaimVerificationSignal> result = service.cascade(List.of(draft));
 
-    // cache miss 시 HybridCascadeService 가 반드시 호출된다
+    // cache miss → HybridCascade → policyScorer 경로 → Tier 2 SCORABLE 신호 산출
     verify(hybridCascade, atLeastOnce()).retrieve(eq(draft.claimText()), anyInt());
+    assertThat(result).hasSize(1);
+    ClaimVerificationSignal signal = result.get(0);
+    assertThat(signal.tier()).isEqualTo((short) 2);
+    assertThat(signal.status()).isEqualTo(ClaimScoreStatus.SCORABLE);
+    assertThat(signal.score()).isEqualTo(75);
   }
 
   @Test
@@ -145,7 +156,6 @@ class VerificationCascadeServiceTest {
   void cascade_routesUnsufficientToTier3() {
     ClaimDraft draft = buildDraft("검증 불가 claim");
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(googleFcAdapter.findMatching(anyString())).thenReturn(Optional.empty());
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
     when(tier3Validator.validate(any()))
         .thenReturn(Optional.of(HeuristicValidator.Tier3ReasonCandidate.INSUFFICIENT));
@@ -161,14 +171,15 @@ class VerificationCascadeServiceTest {
   }
 
   /**
-   * ClaimDraft 의 attribution 필드(speakerName / isQuotedClaim / originalContext)는 cascade 출력
-   * ClaimVerificationSignal 에 전파되지 않는다.
+   * cascade 출력 ClaimVerificationSignal 이 입력 ClaimDraft 의 claimId 만 보존하고 attribution 3 필드
+   * (speakerName / isQuotedClaim / originalContext)는 signal 에 노출하지 않음을 확인한다.
    *
-   * <p>ClaimVerificationSignal record 에 attribution 필드가 없는 것이 설계 의도이다. attribution 은 µ2.4
-   * persistCascadeResults (AnalysisTransactionService) 에서 Claim entity 에 영속화된다.
+   * <p>설계 의도: attribution 은 µ2.4 persistCascadeResults (AnalysisTransactionService) 가 Claim entity
+   * 에 영속화하는 별 경로 — signal record 에 의도적으로 attribution 필드 없음 (컴파일 시점 차단).
    *
-   * <p>검증: signal record 에 speakerName/isQuotedClaim/originalContext 필드가 존재하지 않아 컴파일 시점에 전파 불가.
-   * µ2.4 통합 시점에 persistence layer 에서 ClaimDraft attribution 필드 사용 여부를 별도 검증한다.
+   * <p>검증 대상: (a) result.size() == 입력 draft 수, (b) result.get(0).claimId() == 입력 draft.claimId(). 본
+   * test 가 PASS 라는 것은 cascade 흐름이 attribution 입력에 의해 오류 없이 통과한다는 의미 (PLAN §11-4 무력화 A 시뮬레이션 시
+   * cascade 진입 차단 → 본 test FAIL 로 매핑).
    */
   @Test
   @DisplayName("cascade_preservesClaimAttribution")
@@ -185,7 +196,6 @@ class VerificationCascadeServiceTest {
             null);
 
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(googleFcAdapter.findMatching(anyString())).thenReturn(Optional.empty());
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
@@ -205,7 +215,6 @@ class VerificationCascadeServiceTest {
     ClaimDraft draft3 = buildDraft("claim 3");
 
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(googleFcAdapter.findMatching(anyString())).thenReturn(Optional.empty());
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
@@ -238,7 +247,6 @@ class VerificationCascadeServiceTest {
     EvidenceSnapshot s3 = buildSnapshot("https://example3.com");
 
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(googleFcAdapter.findMatching(anyString())).thenReturn(Optional.empty());
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of(s1, s2, s3));
     when(urlValidator.validate(anyString())).thenReturn(true);
     when(policyScorer.calculate(any(), any(), any())).thenReturn(Optional.of(80));

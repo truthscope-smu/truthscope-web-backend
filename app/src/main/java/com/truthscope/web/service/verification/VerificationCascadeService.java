@@ -78,8 +78,8 @@ public class VerificationCascadeService {
           draft.claimId(), (short) 1, 100, ClaimScoreStatus.SCORABLE, SourceTransparency.EXPLICIT);
     }
 
-    // Tier 1': Google FC API (v1.x stub — 항상 empty, bean 보존)
-    googleFcAdapter.findMatching(draft.claimText());
+    // Tier 1': Google FC API 진입점 — v1.x 미라우팅 (bean은 field 주입으로 보존, 호출 X).
+    //   ADR-018 §결정 5 활성화 시 이 지점에서 googleFcAdapter.findMatching(draft.claimText()) 호출 + rating 매핑.
 
     // Tier 2: HybridCascadeService -> URL 검증 -> 점수 산출
     List<EvidenceSnapshot> snapshots = hybridCascade.retrieve(draft.claimText(), 5);
