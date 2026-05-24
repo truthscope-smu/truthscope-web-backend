@@ -716,5 +716,66 @@ class VerificationPipelineIntegrationTest {
       var claims = claimRepo.findByArticleId(articleId);
       assertThat(claims).isEmpty();
     }
+
+    /**
+     * R-4 RuntimeException → markFailed 전이 + 500 응답.
+     *
+     * <p>contentExtractService throw RuntimeException → AnalysisService catch → markFailed →
+     * suppressed 보존 후 rethrow → GlobalExceptionHandler.handleException → 500 응답.
+     *
+     * <p>rev.2 H-2 + L-1 amend: 500 응답 body에 sessionId 부재 → sessionRepo.findAll() filter로 session FAILED
+     * 검증. Mockito.verify(transactionService).markFailed는 production bean이라 직접 verify 불가.
+     */
+    @Test
+    @DisplayName("R-4 RuntimeException → markFailed 전이 + 500 응답")
+    void runtimeExceptionInContentExtract_markFailedAnd500Response() throws Exception {
+      // Given: contentExtract throw RuntimeException
+      when(contentExtractService.extract(anyString()))
+          .thenThrow(new RuntimeException("외부 사이트 응답 실패"));
+
+      // When + Then: HTTP 500 + ApiErrorResponse JSON fragment
+      mockMvc
+          .perform(
+              post("/api/v1/analysis-sessions")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(requestJson("https://example.com/news/runtime-error")))
+          .andExpect(status().isInternalServerError())
+          .andExpect(jsonPath("$.status").value("error"))
+          .andExpect(jsonPath("$.statusCode").value(500))
+          .andExpect(jsonPath("$.message").value("서버 내부 오류"));
+
+      // DB: sessionRepo.findAll() filter status=FAILED 1건 존재
+      // (response body에 sessionId 부재 → findAll filter로 대체)
+      List<AnalysisSession> failedSessions =
+          sessionRepo.findAll().stream()
+              .filter(s -> s.getStatus() == SessionStatus.FAILED)
+              .toList();
+      assertThat(failedSessions).hasSize(1);
+    }
+
+    /**
+     * R-5 vandalism source (Wave 3 후속 — Wikipedia adapter 활성화 시 24h revision diff 검증).
+     *
+     * <p>DISCUSS Q4 lock: Wikipedia adapter 부재(HANDOFF lock + Wave 3 PR #73 deferred) → stub 인정 박제
+     * placeholder. 본 phase는 5 결함 주입 = 4 실효 + 1 placeholder 정합.
+     *
+     * <p>활성화 시 시나리오 명세:
+     *
+     * <ul>
+     *   <li>Wikipedia API revision diff 24h fixture (안정 revision vs vandalism revision 비교)
+     *   <li>WikipediaAdapter @MockBean 또는 production bean 활성화
+     *   <li>vandalism detector → Tier 3 fallback 검증
+     *   <li>domain-logic.md vandalism mitigation 24h revision diff 정합
+     * </ul>
+     */
+    @Test
+    @Disabled(
+        "Wave 3 후속 — Wikipedia adapter 활성화 (PR #73 머지) + WikipediaAdapter @MockBean 추가 후 활성화")
+    @DisplayName(
+        "R-5 vandalism source (Wave 3 후속 — Wikipedia adapter 활성화 시 24h revision diff 검증)")
+    void wikipediaVandalismRevisionDiff_disabled_wave3Followup() {
+      // placeholder: 활성화 시점에 Wikipedia revision diff 24h fixture + vandalism detector +
+      // Tier 3 fallback assertion 박제 (domain-logic.md vandalism mitigation 정합).
+    }
   }
 }
