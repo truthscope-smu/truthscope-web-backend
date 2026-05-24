@@ -160,31 +160,7 @@ public class AnalysisTransactionService {
 
     // 1. signals → VerificationResult entity 영속화 (인덱스 페어링)
     for (int i = 0; i < signals.size(); i++) {
-      ClaimVerificationSignal signal = signals.get(i);
-      Claim claim = savedClaims.get(i);
-
-      // R1-8 amend: Integer score → Short 변환 (SCORABLE claim만 non-null)
-      Short shortScore =
-          signal.score() == null ? null : (short) Math.min(100, Math.max(0, signal.score()));
-
-      Tier3Reason tier3Reason = mapTier3Reason(signal.status());
-      Verdict verdict = mapVerdict(signal.status());
-
-      // R2-6 amend: Tier 2 disclaimer 원문 고정
-      String disclaimer = signal.tier() == 2 ? "AI 분석이며 기관 검증이 아닙니다. 참고 용도로만 활용하세요." : null;
-
-      VerificationResult result =
-          VerificationResult.builder()
-              .claim(claim)
-              .tier(signal.tier())
-              .score(shortScore)
-              .verdict(verdict)
-              .tier3Reason(tier3Reason)
-              .reason(buildReason(signal))
-              .disclaimer(disclaimer)
-              .verifiedAt(LocalDateTime.now())
-              .build();
-      verificationResultRepository.save(result);
+      verificationResultRepository.save(buildResult(signals.get(i), savedClaims.get(i)));
     }
 
     // 2. Tier count 계산 (Integer → Short 경계)
@@ -250,6 +226,26 @@ public class AnalysisTransactionService {
       case TIME_SENSITIVE -> Verdict.TIME_SENSITIVE;
       case OUT_OF_SCOPE -> Verdict.OUT_OF_SCOPE;
     };
+  }
+
+  /**
+   * 단일 ClaimVerificationSignal을 VerificationResult entity로 변환한다 (R1-8 score 변환 + R2-6 disclaimer +
+   * verdict/tier3Reason/reason 매핑 포함).
+   */
+  private VerificationResult buildResult(ClaimVerificationSignal signal, Claim claim) {
+    Short shortScore =
+        signal.score() == null ? null : (short) Math.min(100, Math.max(0, signal.score()));
+    String disclaimer = signal.tier() == 2 ? "AI 분석이며 기관 검증이 아닙니다. 참고 용도로만 활용하세요." : null;
+    return VerificationResult.builder()
+        .claim(claim)
+        .tier(signal.tier())
+        .score(shortScore)
+        .verdict(mapVerdict(signal.status()))
+        .tier3Reason(mapTier3Reason(signal.status()))
+        .reason(buildReason(signal))
+        .disclaimer(disclaimer)
+        .verifiedAt(LocalDateTime.now())
+        .build();
   }
 
   /**

@@ -1,6 +1,7 @@
 package com.truthscope.web.url;
 
 import com.truthscope.web.scoring.UrlValidatorPolicy;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -81,49 +82,47 @@ public class UrlValidator {
           url);
       return false;
     }
-
     int maxAttempts = 1 + policy.retryCount();
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        var response = restClient.method(HttpMethod.HEAD).uri(url).retrieve().toBodilessEntity();
-
-        // 3xx redirect — Location 헤더 수동 추적
-        if (response.getStatusCode().is3xxRedirection()) {
-          var location = response.getHeaders().getLocation();
-          if (location == null) {
-            log.debug(
-                "UrlValidator: 3xx 응답에 Location 헤더 없음 (url={}, status={})",
-                url,
-                response.getStatusCode().value());
-            return false;
-          }
-          return validateWithDepth(location.toString(), depth + 1);
-        }
-
-        // 2xx 정상
-        return true;
-
-      } catch (RestClientResponseException ex) {
-        // 4xx / 5xx
-        log.debug(
-            "UrlValidator: HTTP 오류 응답 (url={}, status={}, attempt={})",
-            url,
-            ex.getStatusCode().value(),
-            attempt);
-        return false;
-
-      } catch (ResourceAccessException ex) {
-        // 타임아웃 또는 연결 실패
-        log.debug("UrlValidator: 연결/읽기 타임아웃 (url={}, attempt={})", url, attempt);
-        if (attempt < maxAttempts - 1) {
-          sleepBackoff();
-        } else {
-          return false;
-        }
+      Optional<Boolean> result = attemptHead(url, depth, attempt, maxAttempts);
+      if (result.isPresent()) {
+        return result.get();
       }
     }
-
     return false;
+  }
+
+  /** 단일 HEAD 시도. Optional.empty()는 timeout 후 retry 진행을 의미, isPresent는 최종 결과(true/false). */
+  private Optional<Boolean> attemptHead(String url, int depth, int attempt, int maxAttempts) {
+    try {
+      var response = restClient.method(HttpMethod.HEAD).uri(url).retrieve().toBodilessEntity();
+      if (response.getStatusCode().is3xxRedirection()) {
+        var location = response.getHeaders().getLocation();
+        if (location == null) {
+          log.debug(
+              "UrlValidator: 3xx 응답에 Location 헤더 없음 (url={}, status={})",
+              url,
+              response.getStatusCode().value());
+          return Optional.of(false);
+        }
+        return Optional.of(validateWithDepth(location.toString(), depth + 1));
+      }
+      return Optional.of(true);
+    } catch (RestClientResponseException ex) {
+      log.debug(
+          "UrlValidator: HTTP 오류 응답 (url={}, status={}, attempt={})",
+          url,
+          ex.getStatusCode().value(),
+          attempt);
+      return Optional.of(false);
+    } catch (ResourceAccessException ex) {
+      log.debug("UrlValidator: 연결/읽기 타임아웃 (url={}, attempt={})", url, attempt);
+      if (attempt < maxAttempts - 1) {
+        sleepBackoff();
+        return Optional.empty();
+      }
+      return Optional.of(false);
+    }
   }
 
   private void sleepBackoff() {

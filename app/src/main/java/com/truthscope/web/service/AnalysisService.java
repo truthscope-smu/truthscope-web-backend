@@ -59,50 +59,9 @@ public class AnalysisService {
    */
   public AnalysisResponse analyze(AnalysisRequest request) {
     UUID sessionId = transactionService.createPendingSession();
-
     try {
-      // 기사 본문 추출 (트랜잭션 밖 — 외부 HTTP)
-      ExtractedArticle extracted = contentExtractService.extract(request.url());
-
-      // Article 저장 + 세션 EXTRACTING 전이 (트랜잭션)
-      // R3-3 amend: getArticleId() — AnalysisResponse 는 Lombok @Getter 클래스 (record 아님)
-      UUID articleId =
-          transactionService
-              .persistArticleAndUpdateStatus(sessionId, request.url(), extracted)
-              .getArticleId();
-
-      // Wave 1: ClaimAnalysisPort — Gemini 또는 stub (auto-profile)
-      List<ClaimDraft> drafts = claimAnalysisPort.analyze(extracted.getBody());
-
-      // Wave 2 step 1: ClaimDraft → Claim entity 영속화 (트랜잭션)
-      List<com.truthscope.web.entity.Claim> savedClaims =
-          transactionService.persistClaims(articleId, drafts);
-
-      // Wave 2 step 2: 3-Tier Cascade 검증 (외부 HTTP, 트랜잭션 밖)
-      List<ClaimVerificationSignal> signals = verificationCascadeService.cascade(drafts);
-
-      // CX2-1 Critical lock: Phase 55 집계 4함수 STATIC 직접 호출
-      Optional<ArticleFactScore> totalScore =
-          ArticleFactScoreAggregator.aggregateArticleFactScore(signals, scorePolicy);
-      Optional<TruthLabel> articleLabel =
-          totalScore.map(s -> TruthLabelDeriver.deriveTruthLabel(s.value(), bandPolicy));
-      SourceTransparencySummary transparencySummary =
-          SourceTransparencyAggregator.aggregateSourceTransparency(signals);
-      CoverageSummary coverage = CoverageAggregator.aggregateCoverage(signals);
-
-      // Wave 2 step 3: Cascade 결과 영속화 + 세션 COMPLETED 전이 (트랜잭션)
-      transactionService.persistCascadeResults(
-          sessionId, signals, savedClaims, totalScore, articleLabel, transparencySummary, coverage);
-
-      // AnalysisResponse 빌드 — CX4-5/R4-5 amend: baseline 3 필드(sessionId/articleId/status) 유지
-      return AnalysisResponse.builder()
-          .sessionId(sessionId)
-          .articleId(articleId)
-          .status(SessionStatus.COMPLETED.name())
-          .build();
-
+      return runPipeline(request, sessionId);
     } catch (RuntimeException ex) {
-      // 실패 시 세션 상태 FAILED 전이 (markFailed 실패 시 원본 예외에 suppressed 추가)
       try {
         transactionService.markFailed(sessionId);
       } catch (RuntimeException markEx) {
@@ -110,5 +69,36 @@ public class AnalysisService {
       }
       throw ex;
     }
+  }
+
+  private AnalysisResponse runPipeline(AnalysisRequest request, UUID sessionId) {
+    ExtractedArticle extracted = contentExtractService.extract(request.url());
+    UUID articleId =
+        transactionService
+            .persistArticleAndUpdateStatus(sessionId, request.url(), extracted)
+            .getArticleId();
+
+    List<ClaimDraft> drafts = claimAnalysisPort.analyze(extracted.getBody());
+    List<com.truthscope.web.entity.Claim> savedClaims =
+        transactionService.persistClaims(articleId, drafts);
+    List<ClaimVerificationSignal> signals = verificationCascadeService.cascade(drafts);
+
+    // CX2-1 Critical lock: Phase 55 집계 4함수 STATIC 직접 호출
+    Optional<ArticleFactScore> totalScore =
+        ArticleFactScoreAggregator.aggregateArticleFactScore(signals, scorePolicy);
+    Optional<TruthLabel> articleLabel =
+        totalScore.map(s -> TruthLabelDeriver.deriveTruthLabel(s.value(), bandPolicy));
+    SourceTransparencySummary transparencySummary =
+        SourceTransparencyAggregator.aggregateSourceTransparency(signals);
+    CoverageSummary coverage = CoverageAggregator.aggregateCoverage(signals);
+
+    transactionService.persistCascadeResults(
+        sessionId, signals, savedClaims, totalScore, articleLabel, transparencySummary, coverage);
+
+    return AnalysisResponse.builder()
+        .sessionId(sessionId)
+        .articleId(articleId)
+        .status(SessionStatus.COMPLETED.name())
+        .build();
   }
 }
