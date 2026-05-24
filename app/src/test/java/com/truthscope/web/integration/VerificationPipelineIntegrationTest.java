@@ -221,7 +221,7 @@ class VerificationPipelineIntegrationTest {
               .collectedAt(LocalDateTime.now().minusHours(1))
               .expiresAt(LocalDateTime.now().plusDays(7))
               .build();
-      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of(cacheEntry));
+      when(factcheckCacheRepo.searchByText(eq(claimText))).thenReturn(List.of(cacheEntry));
 
       ExtractedArticle fixtureArticle =
           ExtractedArticle.builder()
@@ -393,7 +393,7 @@ class VerificationPipelineIntegrationTest {
               .collectedAt(LocalDateTime.now().minusHours(1))
               .expiresAt(LocalDateTime.now().plusDays(7))
               .build();
-      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of(cacheEntry));
+      when(factcheckCacheRepo.searchByText(eq(claimText))).thenReturn(List.of(cacheEntry));
 
       ExtractedArticle fixtureArticle =
           ExtractedArticle.builder()
@@ -459,7 +459,7 @@ class VerificationPipelineIntegrationTest {
               .collectedAt(LocalDateTime.now().minusHours(1))
               .expiresAt(LocalDateTime.now().plusDays(7))
               .build();
-      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of(cacheEntry));
+      when(factcheckCacheRepo.searchByText(eq(claimText))).thenReturn(List.of(cacheEntry));
 
       ExtractedArticle fixtureArticle =
           ExtractedArticle.builder()
@@ -734,6 +734,11 @@ class VerificationPipelineIntegrationTest {
       when(contentExtractService.extract(anyString()))
           .thenThrow(new RuntimeException("외부 사이트 응답 실패"));
 
+      // CodeRabbit fix A2: delta 기반 검증 (global state 의존 회피).
+      // @AfterEach cleanup으로 매 시나리오 시작 시 0 보장이나 견고성 향상.
+      long beforeFailed =
+          sessionRepo.findAll().stream().filter(s -> s.getStatus() == SessionStatus.FAILED).count();
+
       // When + Then: HTTP 500 + ApiErrorResponse JSON fragment
       mockMvc
           .perform(
@@ -745,13 +750,10 @@ class VerificationPipelineIntegrationTest {
           .andExpect(jsonPath("$.statusCode").value(500))
           .andExpect(jsonPath("$.message").value("서버 내부 오류"));
 
-      // DB: sessionRepo.findAll() filter status=FAILED 1건 존재
-      // (response body에 sessionId 부재 → findAll filter로 대체)
-      List<AnalysisSession> failedSessions =
-          sessionRepo.findAll().stream()
-              .filter(s -> s.getStatus() == SessionStatus.FAILED)
-              .toList();
-      assertThat(failedSessions).hasSize(1);
+      // DB: FAILED 세션 count delta = 1 (response body에 sessionId 부재 → delta 검증)
+      long afterFailed =
+          sessionRepo.findAll().stream().filter(s -> s.getStatus() == SessionStatus.FAILED).count();
+      assertThat(afterFailed - beforeFailed).isEqualTo(1L);
     }
 
     /**
