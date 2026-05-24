@@ -1,21 +1,40 @@
 package com.truthscope.web.integration;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.truthscope.web.dto.request.AnalysisRequest;
+import com.truthscope.web.dto.response.ExtractedArticle;
+import com.truthscope.web.entity.AnalysisSession;
+import com.truthscope.web.entity.FactcheckCache;
+import com.truthscope.web.entity.VerificationResult;
+import com.truthscope.web.entity.enums.SessionStatus;
 import com.truthscope.web.repository.AnalysisSessionRepository;
 import com.truthscope.web.repository.ArticleRepository;
 import com.truthscope.web.repository.ClaimRepository;
 import com.truthscope.web.repository.FactcheckCacheRepository;
 import com.truthscope.web.repository.VerificationResultRepository;
 import com.truthscope.web.scoring.ClaimAnalysisPort;
+import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimScoreCalculator;
+import com.truthscope.web.scoring.ClaimStatusCandidate;
 import com.truthscope.web.service.ContentExtractService;
 import com.truthscope.web.service.verification.HybridCascadeService;
 import com.truthscope.web.url.UrlValidator;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -24,9 +43,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -163,7 +184,77 @@ class VerificationPipelineIntegrationTest {
   @Nested
   @DisplayName("축 1: 기능 적합성 (ISO 25010 functional suitability)")
   class FunctionalSuitability {
-    // Wave 2 추가 예정: F-1 ~ F-4 (4 시나리오)
+
+    /**
+     * F-1 Tier 1 hit + Phase 55 4 함수 통합 + ADR-019 UI 정합.
+     *
+     * <p>factcheck_cache 매칭 시 cascade가 Tier 1 SCORABLE 100점 signal 반환 → Phase 55 4함수가 totalScore +
+     * coverage + transparency 집계 → AnalysisSession.completeCascade 영속화. 응답 + DB state 양방 검증.
+     */
+    @Test
+    @DisplayName("F-1 Tier 1 hit + Phase 55 4 함수 통합 + ADR-019 UI 정합")
+    void tier1Hit_phase55Integration_responseAndDbVerified() throws Exception {
+      // Given: factcheck_cache 매칭 1건 + ExtractedArticle fixture + SCORABLE 1건
+      String claimText = "정부 정책 예산 증액 발표";
+      FactcheckCache cacheEntry =
+          FactcheckCache.builder()
+              .claimText(claimText)
+              .sourceOrg("팩트체크 기관")
+              .rating("TRUE")
+              .originalUrl("https://example-factcheck.org/1")
+              .language("ko")
+              .collectedAt(LocalDateTime.now().minusHours(1))
+              .expiresAt(LocalDateTime.now().plusDays(7))
+              .build();
+      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of(cacheEntry));
+
+      ExtractedArticle fixtureArticle =
+          ExtractedArticle.builder()
+              .title("정책 예산 기사")
+              .body(claimText + " 추가 본문 내용")
+              .lang("ko")
+              .domain("example.com")
+              .build();
+      when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
+
+      ClaimDraft scorableDraft =
+          new ClaimDraft(
+              UUID.randomUUID(), claimText, null, false, null, ClaimStatusCandidate.SCORABLE, null);
+      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+
+      // When: POST /api/v1/analysis-sessions
+      MvcResult result =
+          mockMvc
+              .perform(
+                  post("/api/v1/analysis-sessions")
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content(requestJson("https://example.com/news/tier1")))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.sessionId").exists())
+              .andExpect(jsonPath("$.articleId").exists())
+              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andReturn();
+
+      // Then: DB state 검증
+      JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+      UUID sessionId = UUID.fromString(response.get("sessionId").asText());
+      UUID articleId = UUID.fromString(response.get("articleId").asText());
+
+      AnalysisSession session = sessionRepo.findById(sessionId).orElseThrow();
+      assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
+      assertThat(session.getTier1Count()).isNotNull().isGreaterThanOrEqualTo((short) 1);
+      assertThat(session.getTotalScore()).isNotNull().isBetween((short) 0, (short) 100);
+      assertThat(session.getCoverage()).isNotNull();
+
+      var claims = claimRepo.findByArticleId(articleId);
+      assertThat(claims).hasSize(1);
+
+      var verificationOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+      assertThat(verificationOpt).isPresent();
+      VerificationResult vr = verificationOpt.get();
+      assertThat(vr.getTier()).isEqualTo((short) 1);
+      assertThat(vr.getScore()).isNotNull().isBetween((short) 0, (short) 100);
+    }
   }
 
   @Nested
