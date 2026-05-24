@@ -605,5 +605,69 @@ class VerificationPipelineIntegrationTest {
       assertThat(tier1ResultCount).isEqualTo(1L);
       assertThat(tier3ResultCount).isEqualTo(1L);
     }
+
+    /**
+     * R-2 Tier 3 fallback (cache miss + empty source) → INSUFFICIENT.
+     *
+     * <p>외부 source 부족 시 Tier 3로 정상 fallback. tier3Reason = INSUFFICIENT + score = null
+     * (domain-logic.md Tier 3 원칙).
+     */
+    @Test
+    @DisplayName("R-2 Tier 3 fallback (cache miss + empty source) → INSUFFICIENT")
+    void tier3Fallback_cacheMissAndEmptyCascade_insufficientReason() throws Exception {
+      // Given: factcheck miss + hybridCascade empty + SCORABLE 1건
+      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of());
+      when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+
+      ExtractedArticle fixtureArticle =
+          ExtractedArticle.builder()
+              .title("Tier 3 fallback 기사")
+              .body("source 부족 시나리오 본문")
+              .lang("ko")
+              .domain("unknown.com")
+              .build();
+      when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
+
+      ClaimDraft scorableDraft =
+          new ClaimDraft(
+              UUID.randomUUID(),
+              "Tier 3 fallback claim",
+              null,
+              false,
+              null,
+              ClaimStatusCandidate.SCORABLE,
+              null);
+      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+
+      // When
+      MvcResult result =
+          mockMvc
+              .perform(
+                  post("/api/v1/analysis-sessions")
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content(requestJson("https://unknown.com/news/tier3")))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andReturn();
+
+      // Then: tier3Count >= 1 + tier=3 + tier3Reason=INSUFFICIENT + score=null
+      JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+      UUID sessionId = UUID.fromString(response.get("sessionId").asText());
+      UUID articleId = UUID.fromString(response.get("articleId").asText());
+
+      AnalysisSession session = sessionRepo.findById(sessionId).orElseThrow();
+      assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
+      assertThat(session.getTier3Count()).isNotNull().isGreaterThanOrEqualTo((short) 1);
+
+      var claims = claimRepo.findByArticleId(articleId);
+      assertThat(claims).hasSize(1);
+
+      var verificationOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+      assertThat(verificationOpt).isPresent();
+      VerificationResult vr = verificationOpt.get();
+      assertThat(vr.getTier()).isEqualTo((short) 3);
+      assertThat(vr.getScore()).isNull();
+      assertThat(vr.getTier3Reason()).isEqualTo(Tier3Reason.INSUFFICIENT);
+    }
   }
 }
