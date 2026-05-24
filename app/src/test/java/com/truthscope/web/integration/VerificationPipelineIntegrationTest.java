@@ -507,8 +507,8 @@ class VerificationPipelineIntegrationTest {
      * R-1 혼합 claim (SCORABLE + INSUFFICIENT_CANDIDATE) → 부분 검증 불가 시 정상 집계 동작.
      *
      * <p>rev.3 RC-3 amend (사용자 결정): rev.2 empty drafts 좁힘 시 R-3와 완전 중복 → 혼합 claim으로 재설계. ISO/IEC
-     * 25010 신뢰성 = '부분 검증 불가해도 정상 집계 동작' 입증. SCORABLE 1건 Tier 1 hit + INSUFFICIENT_CANDIDATE 1건 Tier 3
-     * INSUFFICIENT.
+     * 25010 신뢰성 = '부분 검증 불가해도 정상 집계 동작' 입증. SCORABLE 1건 Tier 1 hit + INSUFFICIENT_CANDIDATE 1건 Tier
+     * 3 INSUFFICIENT.
      */
     @Test
     @DisplayName("R-1 혼합 claim (SCORABLE + INSUFFICIENT_CANDIDATE) → 부분 검증 불가 시 정상 집계")
@@ -674,7 +674,8 @@ class VerificationPipelineIntegrationTest {
      * R-3 empty drafts → Optional.empty 정상 처리.
      *
      * <p>claim 추출 0개 → AnalysisService 8단계 흐름 정상 진행 (persistClaims 빈 리스트 + cascade 빈 리스트 +
-     * persistCascadeResults 빈 signals 처리 + ArticleFactScoreAggregator Optional.empty → totalScore=null).
+     * persistCascadeResults 빈 signals 처리 + ArticleFactScoreAggregator Optional.empty →
+     * totalScore=null).
      */
     @Test
     @DisplayName("R-3 empty drafts → Optional.empty 정상 처리")
@@ -723,8 +724,8 @@ class VerificationPipelineIntegrationTest {
      * <p>contentExtractService throw RuntimeException → AnalysisService catch → markFailed →
      * suppressed 보존 후 rethrow → GlobalExceptionHandler.handleException → 500 응답.
      *
-     * <p>rev.2 H-2 + L-1 amend: 500 응답 body에 sessionId 부재 → sessionRepo.findAll() filter로 session FAILED
-     * 검증. Mockito.verify(transactionService).markFailed는 production bean이라 직접 verify 불가.
+     * <p>rev.2 H-2 + L-1 amend: 500 응답 body에 sessionId 부재 → sessionRepo.findAll() filter로 session
+     * FAILED 검증. Mockito.verify(transactionService).markFailed는 production bean이라 직접 verify 불가.
      */
     @Test
     @DisplayName("R-4 RuntimeException → markFailed 전이 + 500 응답")
@@ -769,10 +770,8 @@ class VerificationPipelineIntegrationTest {
      * </ul>
      */
     @Test
-    @Disabled(
-        "Wave 3 후속 — Wikipedia adapter 활성화 (PR #73 머지) + WikipediaAdapter @MockBean 추가 후 활성화")
-    @DisplayName(
-        "R-5 vandalism source (Wave 3 후속 — Wikipedia adapter 활성화 시 24h revision diff 검증)")
+    @Disabled("Wave 3 후속 — Wikipedia adapter 활성화 (PR #73 머지) + WikipediaAdapter @MockBean 추가 후 활성화")
+    @DisplayName("R-5 vandalism source (Wave 3 후속 — Wikipedia adapter 활성화 시 24h revision diff 검증)")
     void wikipediaVandalismRevisionDiff_disabled_wave3Followup() {
       // placeholder: 활성화 시점에 Wikipedia revision diff 24h fixture + vandalism detector +
       // Tier 3 fallback assertion 박제 (domain-logic.md vandalism mitigation 정합).
