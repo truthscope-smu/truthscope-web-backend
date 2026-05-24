@@ -72,4 +72,32 @@ public class AnalysisSession extends BaseTimeEntity {
   public void updateStatus(SessionStatus newStatus) {
     this.status = newStatus;
   }
+
+  /**
+   * Wave 2 cascade 영속화 완료 후 세션 집계 필드를 갱신하고 상태를 COMPLETED로 전이한다.
+   *
+   * <p>@Setter 없음 원칙 준수 — AnalysisTransactionService.persistCascadeResults 가 호출. totalScore /
+   * coverage / tier1~3Count 는 Phase 55 집계 4함수 결과값이다. totalScore=null 이면 검증 가능 claim 0건(기사 전체 Tier 3
+   * 판정).
+   *
+   * @param totalScore Phase 55 ArticleFactScoreAggregator 결과 Short(0..100), 검증 가능 claim 없으면 null
+   * @param coverage CoverageAggregator 집계 결과 (non-null, 빈 경우 모든 count=0)
+   * @param tier1Count Tier 1 signal 수
+   * @param tier2Count Tier 2 signal 수
+   * @param tier3Count Tier 3 signal 수
+   */
+  public void completeCascade(
+      Short totalScore,
+      CoverageSummary coverage,
+      Short tier1Count,
+      Short tier2Count,
+      Short tier3Count) {
+    this.totalScore = totalScore;
+    this.coverage = coverage;
+    this.tier1Count = tier1Count;
+    this.tier2Count = tier2Count;
+    this.tier3Count = tier3Count;
+    this.status = SessionStatus.COMPLETED;
+    this.completedAt = LocalDateTime.now();
+  }
 }
