@@ -1,9 +1,19 @@
 package com.truthscope.web.config;
 
+import com.truthscope.web.scoring.ArticleScorePolicy;
+import com.truthscope.web.scoring.CascadePolicy;
+import com.truthscope.web.scoring.ClaimScoreCalculator;
+import com.truthscope.web.scoring.PolicyEvidenceScorer;
+import com.truthscope.web.scoring.ScoreBandPolicy;
+import com.truthscope.web.scoring.StanceRatioScorer;
 import com.truthscope.web.scoring.Tier3ReasonPolicy;
+import com.truthscope.web.scoring.UrlValidatorPolicy;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,13 +22,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 
 /**
- * Scoring policy bean 등록 (Wave 1 µ1.2 mini-task — Tier3ReasonPolicy 만 선행).
+ * Scoring policy bean 등록.
  *
- * <p>Wave 2 µ2.1 에서 ArticleScorePolicy / ScoreBandPolicy / CascadePolicy / UrlValidatorPolicy /
- * PolicyEvidenceScorer / StanceRatioScorer 6 bean 추가 박제 의무 (PLAN §1 결정 #21 정합).
+ * <p>Wave 1 µ1.2: Tier3ReasonPolicy @Bean (HeuristicValidator constructor injection
+ * NoSuchBeanDefinitionException 차단).
  *
- * <p>본 Wave 1 mini-task 는 HeuristicValidator constructor injection NoSuchBeanDefinitionException
- * 차단을 위한 Tier3ReasonPolicy @Bean 등록만.
+ * <p>Wave 2 µ2.2: ArticleScorePolicy / ScoreBandPolicy / CascadePolicy / UrlValidatorPolicy /
+ * PolicyEvidenceScorer / StanceRatioScorer 6 @Bean 추가 (PLAN §1 결정 #21 정합).
  */
 @Configuration
 public class ScoringPolicyConfig {
@@ -48,5 +58,56 @@ public class ScoringPolicyConfig {
     // outOfScopePatterns 초기값 = 빈 Set (Wave 2 또는 별 phase 에서 ADR-018 제외 기준 패턴 채움)
     Set<String> outOfScopePatterns = Set.of();
     return new Tier3ReasonPolicy(timeKeywords, outOfScopePatterns, missingRefDateThresholdDays);
+  }
+
+  @Bean
+  public ArticleScorePolicy articleScorePolicy(
+      @Value("${truthscope.article-score.score-floor:1.0}") double scoreFloor) {
+    // scoreFloor 기본값 1.0 — Phase 55 DISCUSS D13 기하평균 붕괴 방지 양수 하한
+    // rounding = HALF_UP — production 값 확정 전 합리적 기본값 (UNNECESSARY 금지)
+    return new ArticleScorePolicy(scoreFloor, RoundingMode.HALF_UP);
+  }
+
+  @Bean
+  public ScoreBandPolicy scoreBandPolicy(
+      @Value("${truthscope.score-band.fact-min:80}") int factMin,
+      @Value("${truthscope.score-band.mostly-fact-min:60}") int mostlyFactMin,
+      @Value("${truthscope.score-band.partly-fact-min:40}") int partlyFactMin,
+      @Value("${truthscope.score-band.mostly-not-fact-min:20}") int mostlyNotFactMin) {
+    // 5개 밴드 내림차순 임계값 — Phase 55 DISCUSS 5장 4절 이연, production 값 확정 전 합리적 기본값
+    return new ScoreBandPolicy(factMin, mostlyFactMin, partlyFactMin, mostlyNotFactMin);
+  }
+
+  @Bean
+  public CascadePolicy cascadePolicy(
+      @Value("${truthscope.cascade.source-count-threshold:3}") int sourceCountThreshold,
+      @Value("${truthscope.cascade.tier1-hit-required:true}") boolean tier1HitRequired,
+      @Value("${truthscope.cascade.critical-field-cap-percent:50}") int criticalFieldCapPercent) {
+    return new CascadePolicy(
+        sourceCountThreshold,
+        tier1HitRequired,
+        criticalFieldCapPercent,
+        List.of("수치", "일자", "대상", "금액", "제도명"));
+  }
+
+  @Bean
+  public UrlValidatorPolicy urlValidatorPolicy(
+      @Value("${truthscope.url-validator.connect-timeout:PT5S}") Duration connectTimeout,
+      @Value("${truthscope.url-validator.read-timeout:PT5S}") Duration readTimeout,
+      @Value("${truthscope.url-validator.redirect-max-depth:5}") int redirectMaxDepth,
+      @Value("${truthscope.url-validator.retry-count:1}") int retryCount,
+      @Value("${truthscope.url-validator.retry-backoff:PT1S}") Duration retryBackoff) {
+    return new UrlValidatorPolicy(
+        connectTimeout, readTimeout, redirectMaxDepth, retryCount, retryBackoff);
+  }
+
+  @Bean
+  public ClaimScoreCalculator policyScorer() {
+    return new PolicyEvidenceScorer();
+  }
+
+  @Bean
+  public ClaimScoreCalculator stanceScorer() {
+    return new StanceRatioScorer();
   }
 }
