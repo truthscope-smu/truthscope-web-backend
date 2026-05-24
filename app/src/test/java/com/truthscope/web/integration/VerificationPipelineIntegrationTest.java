@@ -1,0 +1,174 @@
+package com.truthscope.web.integration;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.truthscope.web.dto.request.AnalysisRequest;
+import com.truthscope.web.repository.AnalysisSessionRepository;
+import com.truthscope.web.repository.ArticleRepository;
+import com.truthscope.web.repository.ClaimRepository;
+import com.truthscope.web.repository.FactcheckCacheRepository;
+import com.truthscope.web.repository.VerificationResultRepository;
+import com.truthscope.web.scoring.ClaimAnalysisPort;
+import com.truthscope.web.scoring.ClaimScoreCalculator;
+import com.truthscope.web.service.ContentExtractService;
+import com.truthscope.web.service.verification.HybridCascadeService;
+import com.truthscope.web.url.UrlValidator;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+/**
+ * BE #66 Sprint 4 S4-03 통합 테스트 2축 (기능 적합성 + 신뢰성) D-F 정합.
+ *
+ * <p>3차 면담 (2026-05-21) D-F 결정 + amendment doc sprint-4-amendment-2026-05-23 정합. ISO/IEC 25010
+ * functional suitability + reliability 2축으로 6/8 SW설계 최종 제출 산출물 정량 증거 박제.
+ *
+ * <p>진입점 (DISCUSS Q2 lock + codex 5.5 thread 019e5947 cross-review verdict): C-MOCK
+ * {@code @SpringBootTest(MOCK) + @AutoConfigureMockMvc + Singleton PostgreSQLContainer +
+ * 7종 @MockBean}. Wave 2 VerificationCascadeIntegrationTest 패턴 정합 + HTTP layer 확장으로 ISO 25010 2축 입증력
+ * 강화.
+ *
+ * <p>시나리오 매트릭스 9건:
+ *
+ * <ul>
+ *   <li>축 1 기능 적합성 4건 — F-1 Tier 1 hit + Phase 55 통합 / F-2 Tier 2 hit / F-3
+ *       SourceTransparencyAggregator cross-check / F-4 AnalysisResponse JSON 직렬화
+ *   <li>축 2 신뢰성 5건 — R-1 혼합 claim (SCORABLE + INSUFFICIENT_CANDIDATE) / R-2 Tier 3 fallback / R-3
+ *       empty drafts / R-4 RuntimeException 500 응답 / R-5 vandalism @Disabled placeholder
+ * </ul>
+ *
+ * <p>@MockBean 7종 (PLAN rev.3 RC-1 + RC-2 amend):
+ *
+ * <ul>
+ *   <li>ContentExtractService — 외부 HTTP Jsoup 차단 + fixture ExtractedArticle 반환
+ *   <li>ClaimAnalysisPort — Gemini 실 HTTP 차단 + fixture ClaimDraft 반환
+ *   <li>FactcheckCacheRepository — Supabase tsvector search_vector Flyway 외부 우회
+ *   <li>HybridCascadeService — Wave 2 stub 한계 회피 + Tier 2 fixture snapshot 반환
+ *   <li>@Qualifier("policyScorer") ClaimScoreCalculator — Tier 2 SCORABLE 점수 결정적 제어
+ *   <li>@Qualifier("stanceScorer") ClaimScoreCalculator — Tier 2 fallback scorer 제어
+ *   <li>UrlValidator — 실 HTTP HEAD 요청 차단 (PLAN rev.3 RC-2 amend, UrlValidator.validate line 99)
+ * </ul>
+ *
+ * <p>Singleton Testcontainers + @ServiceConnection 패턴 (V6MigrationTest 정본). AbstractIntegrationTest
+ * 상속 금지 (HANDOFF lock + be21 정합).
+ *
+ * <p>VerificationTrace 14컬럼 assertion 금지 (Wave 2 µ2.4 deferred 박제). AnalysisSession 컬럼 +
+ * VerificationResult 컬럼만 검증.
+ *
+ * <p>@MockBean Spring Boot 3.4 deprecated — @MockitoBean 전환은 별 phase 이슈 (Sprint 5 backlog 후보).
+ */
+@SpringBootTest(webEnvironment = WebEnvironment.MOCK)
+@AutoConfigureMockMvc
+@ActiveProfiles("production")
+@Testcontainers(disabledWithoutDocker = true)
+@TestPropertySource(
+    properties = {
+      "truthscope.gemini.api-key=test-key",
+      "spring.jpa.hibernate.ddl-auto=validate",
+      "spring.flyway.enabled=true",
+      "spring.flyway.locations=classpath:db/migration"
+    })
+@DisplayName("BE #66 통합 테스트 2축 — 기능 적합성 + 신뢰성 (ISO/IEC 25010 정합)")
+class VerificationPipelineIntegrationTest {
+
+  // Singleton Testcontainers + @ServiceConnection — V6MigrationTest 정본 정합
+  @ServiceConnection static final PostgreSQLContainer<?> POSTGRES;
+
+  static {
+    POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    POSTGRES.start();
+  }
+
+  // ── @MockBean 7종 (PLAN rev.3 RC-1 실 bean 이름 + RC-2 UrlValidator HTTP 차단) ─────
+
+  @MockBean ContentExtractService contentExtractService;
+
+  @MockBean ClaimAnalysisPort claimAnalysisPort;
+
+  @MockBean FactcheckCacheRepository factcheckCacheRepo;
+
+  @MockBean HybridCascadeService hybridCascade;
+
+  @MockBean
+  @Qualifier("policyScorer")
+  ClaimScoreCalculator policyScorer;
+
+  @MockBean
+  @Qualifier("stanceScorer")
+  ClaimScoreCalculator stanceScorer;
+
+  @MockBean UrlValidator urlValidator;
+
+  // ── @Autowired (HTTP + DB + CB + JSON) ─────────────────────────────────
+
+  @Autowired MockMvc mockMvc;
+
+  @Autowired ObjectMapper objectMapper;
+
+  @Autowired AnalysisSessionRepository sessionRepo;
+
+  @Autowired VerificationResultRepository verificationResultRepo;
+
+  @Autowired ClaimRepository claimRepo;
+
+  @Autowired ArticleRepository articleRepo;
+
+  @Autowired CircuitBreakerRegistry circuitBreakerRegistry;
+
+  @AfterEach
+  void tearDown() {
+    // FK 의존 순서 cleanup (PLAN rev.3 RC-4 cross-reference)
+    // Wave 2 정본 VerificationCascadeIntegrationTest line 109-118은 articleRepo 의도적 생략
+    // (주석: "session.delete로 orphan 제거"). 본 phase는 cascade 미설정 + 명시적
+    // articleRepo.deleteAll() 추가로 FK orphan 위험 차단.
+    verificationResultRepo.deleteAll();
+    claimRepo.deleteAll();
+    articleRepo.deleteAll();
+    sessionRepo.deleteAll();
+
+    // @MockBean 7종 stub leak 차단
+    Mockito.reset(
+        contentExtractService,
+        claimAnalysisPort,
+        factcheckCacheRepo,
+        hybridCascade,
+        policyScorer,
+        stanceScorer,
+        urlValidator);
+
+    // CircuitBreaker reset (R-1 외 시나리오 보호)
+    circuitBreakerRegistry.circuitBreaker("gemini").reset();
+  }
+
+  /** mockMvc POST 요청 JSON 생성 헬퍼 (PLAN 1장 결정 정합). */
+  private String requestJson(String url) throws Exception {
+    return objectMapper.writeValueAsString(new AnalysisRequest(url));
+  }
+
+  // ── @Nested 2 inner class (시나리오 본문은 Wave 2/3에서 추가) ─────────────
+
+  @Nested
+  @DisplayName("축 1: 기능 적합성 (ISO 25010 functional suitability)")
+  class FunctionalSuitability {
+    // Wave 2 추가 예정: F-1 ~ F-4 (4 시나리오)
+  }
+
+  @Nested
+  @DisplayName("축 2: 신뢰성 (ISO 25010 reliability — fault tolerance + recoverability)")
+  class Reliability {
+    // Wave 3 추가 예정: R-1 ~ R-5 (5 시나리오)
+  }
+}
