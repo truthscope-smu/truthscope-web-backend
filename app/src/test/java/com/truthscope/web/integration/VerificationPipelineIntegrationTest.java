@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,6 +19,7 @@ import com.truthscope.web.entity.AnalysisSession;
 import com.truthscope.web.entity.FactcheckCache;
 import com.truthscope.web.entity.VerificationResult;
 import com.truthscope.web.entity.enums.SessionStatus;
+import com.truthscope.web.entity.enums.Tier3Reason;
 import com.truthscope.web.repository.AnalysisSessionRepository;
 import com.truthscope.web.repository.ArticleRepository;
 import com.truthscope.web.repository.ClaimRepository;
@@ -44,6 +46,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -499,6 +502,108 @@ class VerificationPipelineIntegrationTest {
   @Nested
   @DisplayName("축 2: 신뢰성 (ISO 25010 reliability — fault tolerance + recoverability)")
   class Reliability {
-    // Wave 3 추가 예정: R-1 ~ R-5 (5 시나리오)
+
+    /**
+     * R-1 혼합 claim (SCORABLE + INSUFFICIENT_CANDIDATE) → 부분 검증 불가 시 정상 집계 동작.
+     *
+     * <p>rev.3 RC-3 amend (사용자 결정): rev.2 empty drafts 좁힘 시 R-3와 완전 중복 → 혼합 claim으로 재설계. ISO/IEC
+     * 25010 신뢰성 = '부분 검증 불가해도 정상 집계 동작' 입증. SCORABLE 1건 Tier 1 hit + INSUFFICIENT_CANDIDATE 1건 Tier 3
+     * INSUFFICIENT.
+     */
+    @Test
+    @DisplayName("R-1 혼합 claim (SCORABLE + INSUFFICIENT_CANDIDATE) → 부분 검증 불가 시 정상 집계")
+    void mixedClaimsScorableAndInsufficient_partialVerificationAggregation() throws Exception {
+      // Given: 2 ClaimDraft 혼합 (SCORABLE + INSUFFICIENT_CANDIDATE)
+      String scorableText = "scorable factcheck claim";
+      String insufficientText = "insufficient claim no evidence";
+
+      ClaimDraft scorableDraft =
+          new ClaimDraft(
+              UUID.randomUUID(),
+              scorableText,
+              null,
+              false,
+              null,
+              ClaimStatusCandidate.SCORABLE,
+              null);
+      ClaimDraft insufficientDraft =
+          new ClaimDraft(
+              UUID.randomUUID(),
+              insufficientText,
+              null,
+              false,
+              null,
+              ClaimStatusCandidate.INSUFFICIENT_CANDIDATE,
+              null);
+      when(claimAnalysisPort.analyze(anyString()))
+          .thenReturn(List.of(scorableDraft, insufficientDraft));
+
+      // factcheck_cache: SCORABLE만 hit + INSUFFICIENT는 miss
+      FactcheckCache cacheEntry =
+          FactcheckCache.builder()
+              .claimText(scorableText)
+              .sourceOrg("팩트체크 기관")
+              .rating("TRUE")
+              .originalUrl("https://example-factcheck.org/mixed")
+              .language("ko")
+              .collectedAt(LocalDateTime.now().minusHours(1))
+              .expiresAt(LocalDateTime.now().plusDays(7))
+              .build();
+      when(factcheckCacheRepo.searchByText(eq(scorableText))).thenReturn(List.of(cacheEntry));
+      when(factcheckCacheRepo.searchByText(eq(insufficientText))).thenReturn(List.of());
+
+      // hybridCascade empty → Tier 2 진입 불가 → Tier 3 INSUFFICIENT 기본
+      when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+
+      ExtractedArticle fixtureArticle =
+          ExtractedArticle.builder()
+              .title("혼합 claim 시나리오 기사")
+              .body("혼합 claim 시나리오 본문")
+              .lang("ko")
+              .domain("example.com")
+              .build();
+      when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
+
+      // When
+      MvcResult result =
+          mockMvc
+              .perform(
+                  post("/api/v1/analysis-sessions")
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content(requestJson("https://example.com/news/mixed")))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andReturn();
+
+      // Then: tier1=1 + tier3=1 + tier2=0 + totalScore present + VR 2건
+      JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+      UUID sessionId = UUID.fromString(response.get("sessionId").asText());
+      UUID articleId = UUID.fromString(response.get("articleId").asText());
+
+      AnalysisSession session = sessionRepo.findById(sessionId).orElseThrow();
+      assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
+      assertThat(session.getTier1Count()).isEqualTo((short) 1);
+      assertThat(session.getTier3Count()).isEqualTo((short) 1);
+      assertThat(session.getTier2Count()).isEqualTo((short) 0);
+      // SCORABLE 1건 단독 ArticleFactScoreAggregator 입력 → totalScore present
+      assertThat(session.getTotalScore()).isNotNull().isBetween((short) 0, (short) 100);
+
+      var claims = claimRepo.findByArticleId(articleId);
+      assertThat(claims).hasSize(2);
+
+      // SCORABLE → tier=1 / INSUFFICIENT_CANDIDATE → tier=3 INSUFFICIENT
+      long tier1ResultCount =
+          claims.stream()
+              .map(c -> verificationResultRepo.findByClaimId(c.getId()))
+              .filter(opt -> opt.isPresent() && opt.get().getTier() == 1)
+              .count();
+      long tier3ResultCount =
+          claims.stream()
+              .map(c -> verificationResultRepo.findByClaimId(c.getId()))
+              .filter(opt -> opt.isPresent() && opt.get().getTier() == 3)
+              .count();
+      assertThat(tier1ResultCount).isEqualTo(1L);
+      assertThat(tier3ResultCount).isEqualTo(1L);
+    }
   }
 }
