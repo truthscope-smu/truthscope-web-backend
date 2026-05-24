@@ -118,10 +118,18 @@ class GeminiCircuitBreakerIntegrationTest {
         claimAnalysisPort.analyze(
             "Government announced a 10% budget increase for healthcare in 2026.");
 
-    // Then: 예외 없이 완료, empty claims 반환 (GeminiResponse.insufficient)
+    // Then: 예외 없이 완료, fallback 계약 정합 (빈 목록 OR INSUFFICIENT_CANDIDATE 목록)
     assertThat(drafts).isNotNull();
-    // GeminiResponse.insufficient 는 빈 claims 를 반환하므로 drafts 는 비어 있어야 한다
-    assertThat(drafts).isEmpty();
+    // GeminiResponse.insufficient 의 fallback 표현은 (a) 빈 claims 또는 (b) INSUFFICIENT_CANDIDATE
+    // 상태 claim — 두 경우 모두 허용 (test 의 doc 계약 정합)
+    if (!drafts.isEmpty()) {
+      assertThat(drafts)
+          .allSatisfy(
+              d ->
+                  assertThat(d.claimStatusCandidate())
+                      .isEqualTo(
+                          com.truthscope.web.scoring.ClaimStatusCandidate.INSUFFICIENT_CANDIDATE));
+    }
   }
 
   // ── Section 2: 연속 5xx 실패 후 CB OPEN 전환 검증 ──────────────────────

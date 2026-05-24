@@ -3,6 +3,7 @@ package com.truthscope.web.service.verification;
 import com.truthscope.web.scoring.EvidenceSnapshot;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * ADR-016 Sparse+Dense skeleton. 본 phase = stub or minimal impl.
@@ -29,6 +30,7 @@ public class HybridCascadeService {
    * @param topK maximum number of evidence candidates to return
    * @return list of EvidenceSnapshot candidates (stub: always empty in this phase)
    */
+  @Transactional(readOnly = true)
   public List<EvidenceSnapshot> retrieve(String claimText, int topK) {
     // Stub fixture — Sparse BM25 + Dense embedding impl deferred to ADR-016 v2 track
     return List.of();

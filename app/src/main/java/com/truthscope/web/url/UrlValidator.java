@@ -1,6 +1,7 @@
 package com.truthscope.web.url;
 
 import com.truthscope.web.scoring.UrlValidatorPolicy;
+import java.net.URI;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +106,9 @@ public class UrlValidator {
               response.getStatusCode().value());
           return Optional.of(false);
         }
-        return Optional.of(validateWithDepth(location.toString(), depth + 1));
+        // 상대 경로 Location 헤더 처리 — 현재 URL 기준으로 resolve해 절대 URL 생성
+        URI resolved = URI.create(url).resolve(location);
+        return Optional.of(validateWithDepth(resolved.toString(), depth + 1));
       }
       return Optional.of(true);
     } catch (RestClientResponseException ex) {

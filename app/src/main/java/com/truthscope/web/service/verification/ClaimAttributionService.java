@@ -13,9 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>BE #76 + ADR-020 SIFT T (Trace claims) 정합. Tier 2 cascade 가 매 claim 마다 호출하여 Gemini 가 추출한
  * attribution 메타데이터를 영속화한다.
  *
- * <p>µ2.1 단계 = service skeleton. attach() 메서드 본문은 µ2.3 cascade orchestrator 통합 시점에 활성화. 본 단계 =
- * ClaimRepository.findById + null guard 만 박제, setter 호출은 µ2.2 entity ALTER 완료 후 후속 commit 에서 추가
- * (T2-3 sub-agent 가 setter / builder 박제).
+ * <p>T2-3 entity ALTER 완료(`Claim.attachSpeaker` 비즈니스 메서드)로 attribution 3 필드 실제 영속화 활성화.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,10 +35,7 @@ public class ClaimAttributionService {
         claimRepository
             .findById(claimId)
             .orElseThrow(() -> new IllegalArgumentException("Claim not found: " + claimId));
-    // µ2.3 통합 시점에 setter 호출 (T2-3 entity ALTER 후):
-    //   claim.attachSpeaker(speakerName, isQuoted, originalContext);  // business method (no
-    // setter)
-    // 본 단계 = µ2.1 skeleton, 실제 영속화는 µ2.3 에서 활성화
+    claim.attachSpeaker(speakerName, isQuoted, originalContext);
     claimRepository.save(claim);
   }
 }
