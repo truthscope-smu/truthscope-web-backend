@@ -75,7 +75,8 @@ public class AnalysisService {
       List<ClaimDraft> drafts = claimAnalysisPort.analyze(extracted.getBody());
 
       // Wave 2 step 1: ClaimDraft → Claim entity 영속화 (트랜잭션)
-      transactionService.persistClaims(articleId, drafts);
+      List<com.truthscope.web.entity.Claim> savedClaims =
+          transactionService.persistClaims(articleId, drafts);
 
       // Wave 2 step 2: 3-Tier Cascade 검증 (외부 HTTP, 트랜잭션 밖)
       List<ClaimVerificationSignal> signals = verificationCascadeService.cascade(drafts);
@@ -91,7 +92,7 @@ public class AnalysisService {
 
       // Wave 2 step 3: Cascade 결과 영속화 + 세션 COMPLETED 전이 (트랜잭션)
       transactionService.persistCascadeResults(
-          sessionId, signals, totalScore, articleLabel, transparencySummary, coverage);
+          sessionId, signals, savedClaims, totalScore, articleLabel, transparencySummary, coverage);
 
       // AnalysisResponse 빌드 — CX4-5/R4-5 amend: baseline 3 필드(sessionId/articleId/status) 유지
       return AnalysisResponse.builder()

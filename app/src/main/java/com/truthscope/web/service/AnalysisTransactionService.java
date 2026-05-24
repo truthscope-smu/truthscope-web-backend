@@ -7,6 +7,7 @@ import com.truthscope.web.entity.AnalysisSession;
 import com.truthscope.web.entity.Article;
 import com.truthscope.web.entity.Claim;
 import com.truthscope.web.entity.VerificationResult;
+import com.truthscope.web.entity.enums.ClaimImportance;
 import com.truthscope.web.entity.enums.SessionStatus;
 import com.truthscope.web.entity.enums.Tier3Reason;
 import com.truthscope.web.entity.enums.Verdict;
@@ -96,10 +97,13 @@ public class AnalysisTransactionService {
     List<Claim> savedClaims = new ArrayList<>(drafts.size());
     short sortOrder = 0;
     for (ClaimDraft draft : drafts) {
+      // Claim PK는 JPA @GeneratedValue(UUID)로 자동 생성. ClaimDraft.claimId와 다르므로 cascade signal과
+      // 매칭은 persistCascadeResults에서 인덱스 페어링(savedClaims.get(i))으로 처리.
       Claim claim =
           Claim.builder()
               .article(article)
               .text(draft.claimText())
+              .importance(ClaimImportance.MEDIUM)
               .sortOrder(sortOrder++)
               .speakerName(draft.speakerName())
               .isQuotedClaim(draft.isQuotedClaim())
@@ -124,7 +128,8 @@ public class AnalysisTransactionService {
    * </ul>
    *
    * @param sessionId 대상 세션 ID
-   * @param signals Wave 2 cascade가 생성한 ClaimVerificationSignal 목록
+   * @param signals Wave 2 cascade가 생성한 ClaimVerificationSignal 목록 (입력 draft와 같은 순서/크기)
+   * @param savedClaims persistClaims가 반환한 영속화된 Claim 엔티티 목록 (signals와 인덱스 페어링)
    * @param totalScore Phase 55 ArticleFactScoreAggregator 결과 (검증 가능 claim 없으면 empty)
    * @param articleLabel Phase 55 TruthLabelDeriver 결과 (totalScore empty 이면 empty)
    * @param transparencySummary Phase 55 SourceTransparencyAggregator 결과
@@ -134,23 +139,29 @@ public class AnalysisTransactionService {
   public void persistCascadeResults(
       UUID sessionId,
       List<ClaimVerificationSignal> signals,
+      List<Claim> savedClaims,
       Optional<ArticleFactScore> totalScore,
       Optional<TruthLabel> articleLabel,
       SourceTransparencySummary transparencySummary,
       CoverageSummary coverage) {
+
+    if (signals.size() != savedClaims.size()) {
+      throw new IllegalStateException(
+          "signals와 savedClaims 크기 불일치: signals="
+              + signals.size()
+              + ", savedClaims="
+              + savedClaims.size());
+    }
 
     AnalysisSession session =
         sessionRepository
             .findById(sessionId)
             .orElseThrow(() -> new IllegalStateException("세션을 찾을 수 없습니다: " + sessionId));
 
-    // 1. signals → VerificationResult entity 영속화
-    for (ClaimVerificationSignal signal : signals) {
-      Claim claim =
-          claimRepository
-              .findById(signal.claimId())
-              .orElseThrow(
-                  () -> new IllegalStateException("Claim을 찾을 수 없습니다: " + signal.claimId()));
+    // 1. signals → VerificationResult entity 영속화 (인덱스 페어링)
+    for (int i = 0; i < signals.size(); i++) {
+      ClaimVerificationSignal signal = signals.get(i);
+      Claim claim = savedClaims.get(i);
 
       // R1-8 amend: Integer score → Short 변환 (SCORABLE claim만 non-null)
       Short shortScore =
@@ -169,6 +180,7 @@ public class AnalysisTransactionService {
               .score(shortScore)
               .verdict(verdict)
               .tier3Reason(tier3Reason)
+              .reason(buildReason(signal))
               .disclaimer(disclaimer)
               .verifiedAt(LocalDateTime.now())
               .build();
@@ -237,6 +249,21 @@ public class AnalysisTransactionService {
       case INSUFFICIENT -> Verdict.INSUFFICIENT;
       case TIME_SENSITIVE -> Verdict.TIME_SENSITIVE;
       case OUT_OF_SCOPE -> Verdict.OUT_OF_SCOPE;
+    };
+  }
+
+  /**
+   * VerificationResult.reason (NOT NULL TEXT) 의 v1.x 기본 메시지를 생성한다.
+   *
+   * <p>Tier 1: 팩트체크 기관 매칭 / Tier 2: 다중 출처 cascade / Tier 3: Validator 미판정 사유. µ2.5 이후 cascade trace
+   * 메타데이터를 활용해 정밀 사유로 교체 예정.
+   */
+  private String buildReason(ClaimVerificationSignal signal) {
+    return switch (signal.status()) {
+      case SCORABLE -> signal.tier() == 1 ? "Tier 1 팩트체크 기관 매칭 결과" : "Tier 2 다중 출처 cascade 검증 결과";
+      case INSUFFICIENT -> "Tier 3 검증 출처 부족";
+      case TIME_SENSITIVE -> "Tier 3 시점 의존성으로 검증 보류";
+      case OUT_OF_SCOPE -> "Tier 3 검증 범위 외 claim";
     };
   }
 }
