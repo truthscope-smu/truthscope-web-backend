@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<prompt>
+  <task>
+    당신은 한국어 뉴스 기사에서 사실 주장(claim)을 추출하는 전문가입니다.
+    아래 user_input 안의 기사 본문을 읽고 검증 가능한 사실 주장을 JSON 형식으로 추출하세요.
+  </task>
+  <user_input><![CDATA[${ARTICLE_BODY}]]></user_input>
+  <output_schema>
+    {
+      "claims": [
+        {
+          "claim_text": "...",
+          "speaker_name": "...",
+          "is_quoted_claim": true,
+          "original_context": "...",
+          "claim_status_candidate": "SCORABLE|INSUFFICIENT_CANDIDATE|TIME_SENSITIVE_CANDIDATE|OUT_OF_SCOPE_CANDIDATE",
+          "split_group": "UUID 또는 null"
+        }
+      ]
+    }
+  </output_schema>
+  <verify_step>
+    추출 후 자기 검증: 각 claim 이 (a) 검증 가능한 사실인가? (b) 의견/예측이면 OUT_OF_SCOPE_CANDIDATE 부여 (c) 시간 의존이면 TIME_SENSITIVE_CANDIDATE 부여. 검증 통과한 claim 만 최종 출력.
+  </verify_step>
+</prompt>

@@ -37,3 +37,43 @@ logging:
   level:
     com.truthscope.web: DEBUG
     org.hibernate.SQL: DEBUG
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      gemini:
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        sliding-window-type: TIME_BASED
+        sliding-window-size: 60   # 초 단위 (TIME_BASED 기준)
+        slow-call-duration-threshold: 3s
+        slow-call-rate-threshold: 50
+        minimum-number-of-calls: 3
+        record-exceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpClientErrorException.TooManyRequests
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException.BadRequest
+          - org.springframework.web.client.HttpClientErrorException.Unauthorized
+          - org.springframework.web.client.HttpClientErrorException.Forbidden
+
+truthscope:
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    prompt-version: "v1.0.0"
+    schema-version: "v1.0.0"
+  cascade:
+    source-count-threshold: 3
+    tier1-hit-required: true
+    critical-field-cap-percent: 50
+    claim-split-fields: ["수치", "일자", "대상", "금액", "제도명"]
+  url-validator:
+    connect-timeout: PT5S
+    read-timeout: PT5S
+    redirect-max-depth: 5
+    retry-count: 1
+    retry-backoff: PT1S
+  tier3-reason:
+    time-keywords-resource: "classpath:policies/tier3-reason-time-keywords-v1.txt"
+    missing-ref-date-threshold-days: 30

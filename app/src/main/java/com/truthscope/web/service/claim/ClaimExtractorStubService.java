@@ -3,7 +3,9 @@ package com.truthscope.web.service.claim;
 import com.truthscope.web.dto.response.ExtractedClaim;
 import com.truthscope.web.entity.enums.ClaimImportance;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * {@link ClaimExtractorService}의 Sprint 2 stub 구현.
@@ -14,8 +16,16 @@ import org.springframework.stereotype.Service;
  *
  * <p>stub은 Spring Context에서 단일 빈으로 등록된다. Sprint 3 실구현체 도입 시 본 stub의 {@code @Service}를 제거하거나
  * {@code @Profile("!production")}으로 격리한다.
+ *
+ * <p>rev.2 amend (Round 1 R1-1): production 환경에서 미사용 stub bean 격리.
+ *
+ * @deprecated Phase 19 BE #25 stub interface 단계로 Wave 1 부터 deprecated. ClaimExtractorService 인터페이스
+ *     기반 파이프라인은 ClaimAnalysisService + ClaimAnalysisPort 로 교체된다.
  */
+@Deprecated
 @Service
+@Profile("!production")
+@Transactional(readOnly = true)
 public class ClaimExtractorStubService implements ClaimExtractorService {
 
   private static final List<ExtractedClaim> FIXTURE =
