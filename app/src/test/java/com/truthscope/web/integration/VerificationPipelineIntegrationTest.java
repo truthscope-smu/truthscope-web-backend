@@ -434,6 +434,66 @@ class VerificationPipelineIntegrationTest {
       assertThat(summary.explicitCount() + summary.ambiguousCount() + summary.noneCount())
           .isEqualTo(1);
     }
+
+    /**
+     * F-4 AnalysisResponse JSON 직렬화 계약 (ADR-019 UI 진입점).
+     *
+     * <p>응답 JSON path 정합 검증: sessionId/articleId UUID regex + status enum 값 + Content-Type
+     * application/json. FE Phase 21 결과 카드 wiring 대비 contract 검증.
+     */
+    @Test
+    @DisplayName("F-4 AnalysisResponse JSON 직렬화 계약 (ADR-019 UI 진입점)")
+    void analysisResponse_jsonSerialization_contractCompliance() throws Exception {
+      // Given: F-1 setup (Tier 1 hit, 정상 흐름)
+      String claimText = "JSON 직렬화 계약 검증 claim";
+      FactcheckCache cacheEntry =
+          FactcheckCache.builder()
+              .claimText(claimText)
+              .sourceOrg("팩트체크 기관")
+              .rating("TRUE")
+              .originalUrl("https://example-factcheck.org/3")
+              .language("ko")
+              .collectedAt(LocalDateTime.now().minusHours(1))
+              .expiresAt(LocalDateTime.now().plusDays(7))
+              .build();
+      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of(cacheEntry));
+
+      ExtractedArticle fixtureArticle =
+          ExtractedArticle.builder()
+              .title("JSON 계약 기사")
+              .body(claimText + " 본문")
+              .lang("ko")
+              .domain("example.com")
+              .build();
+      when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
+
+      ClaimDraft scorableDraft =
+          new ClaimDraft(
+              UUID.randomUUID(), claimText, null, false, null, ClaimStatusCandidate.SCORABLE, null);
+      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+
+      // When + Then: JSON path + Content-Type 정합
+      String uuidRegex =
+          "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+      mockMvc
+          .perform(
+              post("/api/v1/analysis-sessions")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(requestJson("https://example.com/news/json-contract")))
+          .andExpect(status().isCreated())
+          .andExpect(jsonPath("$.sessionId").exists())
+          .andExpect(jsonPath("$.sessionId").value(org.hamcrest.Matchers.matchesRegex(uuidRegex)))
+          .andExpect(jsonPath("$.articleId").exists())
+          .andExpect(jsonPath("$.articleId").value(org.hamcrest.Matchers.matchesRegex(uuidRegex)))
+          .andExpect(
+              jsonPath("$.status")
+                  .value(
+                      org.hamcrest.Matchers.isOneOf(
+                          "PENDING", "EXTRACTING", "ANALYZING", "COMPLETED", "FAILED")))
+          .andExpect(
+              org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                  .contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+    }
   }
 
   @Nested
