@@ -1,6 +1,9 @@
 package com.truthscope.web.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,12 +27,15 @@ import com.truthscope.web.scoring.ClaimAnalysisPort;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimScoreCalculator;
 import com.truthscope.web.scoring.ClaimStatusCandidate;
+import com.truthscope.web.scoring.EvidenceSnapshot;
 import com.truthscope.web.service.ContentExtractService;
 import com.truthscope.web.service.verification.HybridCascadeService;
 import com.truthscope.web.url.UrlValidator;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -254,6 +260,102 @@ class VerificationPipelineIntegrationTest {
       VerificationResult vr = verificationOpt.get();
       assertThat(vr.getTier()).isEqualTo((short) 1);
       assertThat(vr.getScore()).isNotNull().isBetween((short) 0, (short) 100);
+    }
+
+    /**
+     * F-2 Tier 2 hit (HybridCascade + urlValidator + policyScorer stub) + 결과 카드 정합.
+     *
+     * <p>rev.3 RC-1 amend: @Qualifier("policyScorer") 실 bean 이름 정합. rev.3 RC-2 amend:
+     * UrlValidator @MockBean으로 실 HTTP HEAD 차단.
+     *
+     * <p>cascade 흐름: factcheck miss → hybridCascade 3 snapshot → urlValidator true 통과 →
+     * validSnapshots size 3 >= threshold 3 → policyScorer Optional.of(70) → Tier 2 SCORABLE 70점.
+     */
+    @Test
+    @DisplayName("F-2 Tier 2 hit (HybridCascade + urlValidator + policyScorer stub) + 결과 카드 정합")
+    void tier2Hit_scorerStub_responseAndDbVerified() throws Exception {
+      // Given: Tier 1 miss + HybridCascade 3 snapshot + urlValidator true + policyScorer
+      // Optional.of(70)
+      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of());
+
+      List<EvidenceSnapshot> snapshots =
+          List.of(
+              new EvidenceSnapshot(
+                  "https://valid-source.com/article-1",
+                  "공식 출처 1",
+                  "기사 제목 1",
+                  "SUPPORTED",
+                  Map.of()),
+              new EvidenceSnapshot(
+                  "https://valid-source.com/article-2",
+                  "공식 출처 2",
+                  "기사 제목 2",
+                  "SUPPORTED",
+                  Map.of()),
+              new EvidenceSnapshot(
+                  "https://valid-source.com/article-3",
+                  "공식 출처 3",
+                  "기사 제목 3",
+                  "SUPPORTED",
+                  Map.of()));
+      when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(snapshots);
+
+      // rev.3 RC-2 amend: UrlValidator 실 HTTP HEAD 차단
+      when(urlValidator.validate(anyString())).thenReturn(true);
+
+      // rev.3 RC-1 amend: policyScorer 실 bean 이름 + Optional.of(70) 직접 제어
+      when(policyScorer.calculate(any(), anyList(), any())).thenReturn(Optional.of(70));
+
+      ExtractedArticle fixtureArticle =
+          ExtractedArticle.builder()
+              .title("Tier 2 시나리오 기사")
+              .body("Tier 2 검증 시나리오 본문")
+              .lang("ko")
+              .domain("example.com")
+              .build();
+      when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
+
+      ClaimDraft scorableDraft =
+          new ClaimDraft(
+              UUID.randomUUID(),
+              "Tier 2 검증 claim",
+              null,
+              false,
+              null,
+              ClaimStatusCandidate.SCORABLE,
+              null);
+      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+
+      // When: POST
+      MvcResult result =
+          mockMvc
+              .perform(
+                  post("/api/v1/analysis-sessions")
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content(requestJson("https://example.com/news/tier2")))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andReturn();
+
+      // Then: DB tier2Count >= 1 + tier1Count = 0 + totalScore + Tier 2 disclaimer
+      JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+      UUID sessionId = UUID.fromString(response.get("sessionId").asText());
+      UUID articleId = UUID.fromString(response.get("articleId").asText());
+
+      AnalysisSession session = sessionRepo.findById(sessionId).orElseThrow();
+      assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
+      assertThat(session.getTier2Count()).isNotNull().isGreaterThanOrEqualTo((short) 1);
+      assertThat(session.getTier1Count()).isEqualTo((short) 0);
+      assertThat(session.getTotalScore()).isNotNull().isBetween((short) 0, (short) 100);
+
+      var claims = claimRepo.findByArticleId(articleId);
+      assertThat(claims).hasSize(1);
+
+      var verificationOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+      assertThat(verificationOpt).isPresent();
+      VerificationResult vr = verificationOpt.get();
+      assertThat(vr.getTier()).isEqualTo((short) 2);
+      assertThat(vr.getDisclaimer()).isEqualTo("AI 분석이며 기관 검증이 아닙니다. 참고 용도로만 활용하세요.");
     }
   }
 
