@@ -669,5 +669,52 @@ class VerificationPipelineIntegrationTest {
       assertThat(vr.getScore()).isNull();
       assertThat(vr.getTier3Reason()).isEqualTo(Tier3Reason.INSUFFICIENT);
     }
+
+    /**
+     * R-3 empty drafts → Optional.empty 정상 처리.
+     *
+     * <p>claim 추출 0개 → AnalysisService 8단계 흐름 정상 진행 (persistClaims 빈 리스트 + cascade 빈 리스트 +
+     * persistCascadeResults 빈 signals 처리 + ArticleFactScoreAggregator Optional.empty → totalScore=null).
+     */
+    @Test
+    @DisplayName("R-3 empty drafts → Optional.empty 정상 처리")
+    void emptyClaimResult_optionalEmptyHandling_nullScore() throws Exception {
+      // Given: contentExtract fixture + claimAnalysisPort empty (rev.2 M-2 amend — NPE 방지 stub)
+      ExtractedArticle fixtureArticle =
+          ExtractedArticle.builder()
+              .title("Empty claim 기사")
+              .body("claim 추출 0개 시나리오")
+              .lang("ko")
+              .domain("example.com")
+              .build();
+      when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
+      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of());
+
+      // When
+      MvcResult result =
+          mockMvc
+              .perform(
+                  post("/api/v1/analysis-sessions")
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content(requestJson("https://example.com/news/empty")))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andReturn();
+
+      // Then: totalScore=null + 모든 tier count=0 + VR 0건
+      JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+      UUID sessionId = UUID.fromString(response.get("sessionId").asText());
+      UUID articleId = UUID.fromString(response.get("articleId").asText());
+
+      AnalysisSession session = sessionRepo.findById(sessionId).orElseThrow();
+      assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
+      assertThat(session.getTotalScore()).isNull();
+      assertThat(session.getTier1Count()).isEqualTo((short) 0);
+      assertThat(session.getTier2Count()).isEqualTo((short) 0);
+      assertThat(session.getTier3Count()).isEqualTo((short) 0);
+
+      var claims = claimRepo.findByArticleId(articleId);
+      assertThat(claims).isEmpty();
+    }
   }
 }
