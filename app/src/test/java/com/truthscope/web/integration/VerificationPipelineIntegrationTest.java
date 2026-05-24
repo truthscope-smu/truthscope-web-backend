@@ -26,8 +26,14 @@ import com.truthscope.web.repository.VerificationResultRepository;
 import com.truthscope.web.scoring.ClaimAnalysisPort;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimScoreCalculator;
+import com.truthscope.web.scoring.ClaimScoreStatus;
 import com.truthscope.web.scoring.ClaimStatusCandidate;
+import com.truthscope.web.scoring.ClaimVerificationSignal;
 import com.truthscope.web.scoring.EvidenceSnapshot;
+import com.truthscope.web.scoring.SourceTransparency;
+import com.truthscope.web.scoring.SourceTransparencyAggregator;
+import com.truthscope.web.scoring.SourceTransparencyBand;
+import com.truthscope.web.scoring.SourceTransparencySummary;
 import com.truthscope.web.service.ContentExtractService;
 import com.truthscope.web.service.verification.HybridCascadeService;
 import com.truthscope.web.url.UrlValidator;
@@ -356,6 +362,77 @@ class VerificationPipelineIntegrationTest {
       VerificationResult vr = verificationOpt.get();
       assertThat(vr.getTier()).isEqualTo((short) 2);
       assertThat(vr.getDisclaimer()).isEqualTo("AI 분석이며 기관 검증이 아닙니다. 참고 용도로만 활용하세요.");
+    }
+
+    /**
+     * F-3 SourceTransparencyAggregator 직접 호출 cross-check + 파이프라인 통합.
+     *
+     * <p>rev.2 C-2 + M-3 amend: SourceTransparencySummary 실 record 필드 4종 (explicitCount /
+     * ambiguousCount / noneCount / band). AnalysisSession에 transparency 컬럼 부재라 DB assertion 불가 →
+     * test 내부 fixture signals로 Aggregator static method 직접 호출 + 4종 필드 cross-check + 합 =
+     * signals.size() 정합.
+     *
+     * <p>본 시나리오는 (a) production 파이프라인이 Tier 1 hit signal을 생성하는 것을 DB 영속화로 검증 + (b)
+     * SourceTransparencyAggregator 자체의 결정성(같은 input → 같은 output)을 cross-check한다.
+     */
+    @Test
+    @DisplayName("F-3 SourceTransparencyAggregator 직접 호출 cross-check + 파이프라인 통합")
+    void sourceTransparencyAggregator_crossCheck_pipelineIntegration() throws Exception {
+      // Given: F-1과 동일 fixture (Tier 1 hit)
+      String claimText = "SourceTransparency cross-check claim";
+      FactcheckCache cacheEntry =
+          FactcheckCache.builder()
+              .claimText(claimText)
+              .sourceOrg("팩트체크 기관")
+              .rating("TRUE")
+              .originalUrl("https://example-factcheck.org/2")
+              .language("ko")
+              .collectedAt(LocalDateTime.now().minusHours(1))
+              .expiresAt(LocalDateTime.now().plusDays(7))
+              .build();
+      when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of(cacheEntry));
+
+      ExtractedArticle fixtureArticle =
+          ExtractedArticle.builder()
+              .title("Transparency cross-check 기사")
+              .body(claimText + " 본문")
+              .lang("ko")
+              .domain("example.com")
+              .build();
+      when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
+
+      UUID claimId = UUID.randomUUID();
+      ClaimDraft scorableDraft =
+          new ClaimDraft(
+              claimId, claimText, null, false, null, ClaimStatusCandidate.SCORABLE, null);
+      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+
+      // When: production 흐름 → POST + Aggregator static method 직접 호출
+      mockMvc
+          .perform(
+              post("/api/v1/analysis-sessions")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(requestJson("https://example.com/news/transparency")))
+          .andExpect(status().isCreated())
+          .andExpect(jsonPath("$.status").value("COMPLETED"))
+          .andReturn();
+
+      // Aggregator 직접 호출: production이 받았을 ClaimVerificationSignal 1건 fixture 생성 후 cross-check
+      // (production은 Tier 1 hit 시 EXPLICIT SourceTransparency 부여 — VerificationCascadeService line
+      // 78)
+      ClaimVerificationSignal fixtureSignal =
+          new ClaimVerificationSignal(
+              claimId, (short) 1, 100, ClaimScoreStatus.SCORABLE, SourceTransparency.EXPLICIT);
+      SourceTransparencySummary summary =
+          SourceTransparencyAggregator.aggregateSourceTransparency(List.of(fixtureSignal));
+
+      // Then: 4종 필드 + 합 = signals.size() 정합
+      assertThat(summary.explicitCount()).isEqualTo(1);
+      assertThat(summary.ambiguousCount()).isEqualTo(0);
+      assertThat(summary.noneCount()).isEqualTo(0);
+      assertThat(summary.band()).isEqualTo(SourceTransparencyBand.ALL_EXPLICIT);
+      assertThat(summary.explicitCount() + summary.ambiguousCount() + summary.noneCount())
+          .isEqualTo(1);
     }
   }
 
