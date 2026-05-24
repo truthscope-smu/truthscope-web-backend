@@ -1,9 +1,8 @@
 package com.truthscope.web.service.verification;
 
 import com.truthscope.web.scoring.EvidenceSnapshot;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
+import org.springframework.stereotype.Service;
 
 /**
  * ADR-016 Sparse+Dense skeleton. 본 phase = stub or minimal impl.
@@ -19,19 +18,19 @@ import java.util.List;
 @Service
 public class HybridCascadeService {
 
-    public HybridCascadeService() {
-        // explicit no-arg constructor — dependencies will be injected in v2 impl track
-    }
+  public HybridCascadeService() {
+    // explicit no-arg constructor — dependencies will be injected in v2 impl track
+  }
 
-    /**
-     * Retrieve evidence snapshots for a given claim.
-     *
-     * @param claimText the claim text to search evidence for
-     * @param topK      maximum number of evidence candidates to return
-     * @return list of EvidenceSnapshot candidates (stub: always empty in this phase)
-     */
-    public List<EvidenceSnapshot> retrieve(String claimText, int topK) {
-        // Stub fixture — Sparse BM25 + Dense embedding impl deferred to ADR-016 v2 track
-        return List.of();
-    }
+  /**
+   * Retrieve evidence snapshots for a given claim.
+   *
+   * @param claimText the claim text to search evidence for
+   * @param topK maximum number of evidence candidates to return
+   * @return list of EvidenceSnapshot candidates (stub: always empty in this phase)
+   */
+  public List<EvidenceSnapshot> retrieve(String claimText, int topK) {
+    // Stub fixture — Sparse BM25 + Dense embedding impl deferred to ADR-016 v2 track
+    return List.of();
+  }
 }

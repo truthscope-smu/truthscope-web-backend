@@ -28,11 +28,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  *   <li>ck_analysis_sessions_total_score_range CHECK 제약 존재
  * </ul>
  *
- * <p>entity 변경(T2-3 µ2.2)에 의존하지 않고 raw information_schema 쿼리만 사용한다.
- * T2-1 단독 scope = DB 스키마 검증.
+ * <p>entity 변경(T2-3 µ2.2)에 의존하지 않고 raw information_schema 쿼리만 사용한다. T2-1 단독 scope = DB 스키마 검증.
  *
- * <p>Singleton Testcontainers + @ServiceConnection 패턴 (VerificationTraceSchemaIntegrationTest
- * 정합). AbstractIntegrationTest 상속 금지 — 그 base는 create-drop + flyway 비활성이라 V6 drift 검증 불가.
+ * <p>Singleton Testcontainers + @ServiceConnection 패턴 (VerificationTraceSchemaIntegrationTest 정합).
+ * AbstractIntegrationTest 상속 금지 — 그 base는 create-drop + flyway 비활성이라 V6 drift 검증 불가.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)

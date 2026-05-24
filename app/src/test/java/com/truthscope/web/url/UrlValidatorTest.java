@@ -34,8 +34,8 @@ import org.springframework.web.client.RestClient.ResponseSpec;
  *
  * <p>RestClient 를 Mockito 로 mock 하여 네트워크 없이 HEAD 검증 시나리오를 검증한다.
  *
- * <p>RestClient 체인: method(HEAD) → uri(url) → retrieve() → toBodilessEntity()
- * <br>타입 맵핑: method(HEAD) → RequestBodyUriSpec, uri(String) → RequestBodySpec, retrieve() →
+ * <p>RestClient 체인: method(HEAD) → uri(url) → retrieve() → toBodilessEntity() <br>
+ * 타입 맵핑: method(HEAD) → RequestBodyUriSpec, uri(String) → RequestBodySpec, retrieve() →
  * ResponseSpec, toBodilessEntity() → ResponseEntity<Void>
  *
  * <p>Spring Context 없이 순수 단위 테스트. {@link UrlValidatorPolicy} 는 직접 생성 (T2-5 Bean 불필요).
@@ -60,19 +60,19 @@ class UrlValidatorTest {
     // T2-5 Bean 없이 직접 생성 (PLAN §T2-4 주석)
     policy =
         new UrlValidatorPolicy(
-            Duration.ofSeconds(5),   // connectTimeout
-            Duration.ofSeconds(5),   // readTimeout
-            5,                       // redirectMaxDepth
-            1,                       // retryCount
-            Duration.ofMillis(10));  // retryBackoff (테스트에서는 짧게)
+            Duration.ofSeconds(5), // connectTimeout
+            Duration.ofSeconds(5), // readTimeout
+            5, // redirectMaxDepth
+            1, // retryCount
+            Duration.ofMillis(10)); // retryBackoff (테스트에서는 짧게)
     urlValidator = new UrlValidator(restClient, policy);
   }
 
   /**
    * RestClient HEAD 체인 stubbing — 공통 helper.
    *
-   * <p>chain: method(HEAD) → RequestBodyUriSpec → uri(anyString()) → RequestBodySpec
-   * → retrieve() → ResponseSpec → toBodilessEntity() → response
+   * <p>chain: method(HEAD) → RequestBodyUriSpec → uri(anyString()) → RequestBodySpec → retrieve() →
+   * ResponseSpec → toBodilessEntity() → response
    */
   private void stubHead(ResponseEntity<Void> response) {
     when(restClient.method(HttpMethod.HEAD)).thenReturn(requestBodyUriSpec);
@@ -111,8 +111,7 @@ class UrlValidatorTest {
     when(restClient.method(HttpMethod.HEAD)).thenReturn(requestBodyUriSpec);
     doReturn(requestBodySpec).when(requestBodyUriSpec).uri(anyString());
     doReturn(responseSpec).when(requestBodySpec).retrieve();
-    doThrow(HttpClientErrorException.create(
-            HttpStatus.NOT_FOUND, "Not Found", null, null, null))
+    doThrow(HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", null, null, null))
         .when(responseSpec)
         .toBodilessEntity();
 
@@ -129,8 +128,9 @@ class UrlValidatorTest {
     when(restClient.method(HttpMethod.HEAD)).thenReturn(requestBodyUriSpec);
     doReturn(requestBodySpec).when(requestBodyUriSpec).uri(anyString());
     doReturn(responseSpec).when(requestBodySpec).retrieve();
-    doThrow(HttpServerErrorException.create(
-            HttpStatus.INTERNAL_SERVER_ERROR, "Server Error", null, null, null))
+    doThrow(
+            HttpServerErrorException.create(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Server Error", null, null, null))
         .when(responseSpec)
         .toBodilessEntity();
 
@@ -148,9 +148,7 @@ class UrlValidatorTest {
     when(restClient.method(HttpMethod.HEAD)).thenReturn(requestBodyUriSpec);
     doReturn(requestBodySpec).when(requestBodyUriSpec).uri(anyString());
     doReturn(responseSpec).when(requestBodySpec).retrieve();
-    doThrow(new ResourceAccessException("Read timed out"))
-        .when(responseSpec)
-        .toBodilessEntity();
+    doThrow(new ResourceAccessException("Read timed out")).when(responseSpec).toBodilessEntity();
 
     boolean result = urlValidator.validate(VALID_URL);
 
@@ -175,10 +173,10 @@ class UrlValidatorTest {
     String finalUrl = "https://example.com/final";
 
     when(responseSpec.toBodilessEntity())
-        .thenReturn(redirect301(url2))   // depth 0
-        .thenReturn(redirect301(url3))   // depth 1
+        .thenReturn(redirect301(url2)) // depth 0
+        .thenReturn(redirect301(url3)) // depth 1
         .thenReturn(redirect301(finalUrl)) // depth 2
-        .thenReturn(ok200());             // depth 3
+        .thenReturn(ok200()); // depth 3
 
     boolean result = urlValidator.validate("https://example.com/r1");
 

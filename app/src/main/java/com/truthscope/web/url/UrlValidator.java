@@ -21,12 +21,12 @@ import org.springframework.web.client.RestClientResponseException;
  *   <li>redirect chain 깊이가 {@link UrlValidatorPolicy#redirectMaxDepth()} 를 초과할 때
  * </ul>
  *
- * <p>redirect 처리: {@code urlValidatorRestClient} Bean 은 자동 redirect 추적 OFF
- * ({@link java.net.http.HttpClient.Redirect#NEVER}) — 3xx 응답의 {@code Location} 헤더를 직접 읽어
- * 재귀적으로 검증한다. 깊이 카운터가 {@link UrlValidatorPolicy#redirectMaxDepth()} 에 도달하면 {@code false} 반환.
+ * <p>redirect 처리: {@code urlValidatorRestClient} Bean 은 자동 redirect 추적 OFF ({@link
+ * java.net.http.HttpClient.Redirect#NEVER}) — 3xx 응답의 {@code Location} 헤더를 직접 읽어 재귀적으로 검증한다. 깊이
+ * 카운터가 {@link UrlValidatorPolicy#redirectMaxDepth()} 에 도달하면 {@code false} 반환.
  *
- * <p>단일 재시도: {@link UrlValidatorPolicy#retryCount()} = 1 일 때 일시적 실패에 대해 1회 재시도.
- * 재시도 대기 시간은 {@link UrlValidatorPolicy#retryBackoff()} (기본값 1초).
+ * <p>단일 재시도: {@link UrlValidatorPolicy#retryCount()} = 1 일 때 일시적 실패에 대해 1회 재시도. 재시도 대기 시간은 {@link
+ * UrlValidatorPolicy#retryBackoff()} (기본값 1초).
  *
  * <p>PLAN §1 결정 #31 / CX4-4 amend 정합.
  */
@@ -74,27 +74,27 @@ public class UrlValidator {
    */
   private boolean validateWithDepth(String url, int depth) {
     if (depth > policy.redirectMaxDepth()) {
-      log.debug("UrlValidator: redirect 깊이 초과 (depth={}, max={}, url={})",
-          depth, policy.redirectMaxDepth(), url);
+      log.debug(
+          "UrlValidator: redirect 깊이 초과 (depth={}, max={}, url={})",
+          depth,
+          policy.redirectMaxDepth(),
+          url);
       return false;
     }
 
     int maxAttempts = 1 + policy.retryCount();
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        var response =
-            restClient
-                .method(HttpMethod.HEAD)
-                .uri(url)
-                .retrieve()
-                .toBodilessEntity();
+        var response = restClient.method(HttpMethod.HEAD).uri(url).retrieve().toBodilessEntity();
 
         // 3xx redirect — Location 헤더 수동 추적
         if (response.getStatusCode().is3xxRedirection()) {
           var location = response.getHeaders().getLocation();
           if (location == null) {
-            log.debug("UrlValidator: 3xx 응답에 Location 헤더 없음 (url={}, status={})",
-                url, response.getStatusCode().value());
+            log.debug(
+                "UrlValidator: 3xx 응답에 Location 헤더 없음 (url={}, status={})",
+                url,
+                response.getStatusCode().value());
             return false;
           }
           return validateWithDepth(location.toString(), depth + 1);
@@ -105,8 +105,11 @@ public class UrlValidator {
 
       } catch (RestClientResponseException ex) {
         // 4xx / 5xx
-        log.debug("UrlValidator: HTTP 오류 응답 (url={}, status={}, attempt={})",
-            url, ex.getStatusCode().value(), attempt);
+        log.debug(
+            "UrlValidator: HTTP 오류 응답 (url={}, status={}, attempt={})",
+            url,
+            ex.getStatusCode().value(),
+            attempt);
         return false;
 
       } catch (ResourceAccessException ex) {
