@@ -43,7 +43,15 @@ public record ClaimAnalysisPayload(List<ClaimItem> claims) {
      * <p>{@code splitGroup} 이 null 이면 {@link ClaimDraft#splitGroup()} 도 null — 독립 단일 claim 의미.
      */
     public ClaimDraft toClaimDraft() {
-      UUID splitGroupUuid = splitGroup == null ? null : UUID.fromString(splitGroup);
+      UUID splitGroupUuid = null;
+      if (splitGroup != null) {
+        try {
+          splitGroupUuid = UUID.fromString(splitGroup);
+        } catch (IllegalArgumentException ex) {
+          // Gemini 가 malformed UUID 반환 시 null fallback — claim 단위 격리 보장
+          splitGroupUuid = null;
+        }
+      }
       return new ClaimDraft(
           UUID.randomUUID(),
           claimText,

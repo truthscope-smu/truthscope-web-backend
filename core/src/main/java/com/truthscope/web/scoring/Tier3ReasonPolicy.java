@@ -11,8 +11,9 @@ public record Tier3ReasonPolicy(
     Set<String> timeKeywords, Set<String> outOfScopePatterns, int missingRefDateThresholdDays) {
 
   public Tier3ReasonPolicy {
-    Objects.requireNonNull(timeKeywords, "timeKeywords는 null 일 수 없다");
-    Objects.requireNonNull(outOfScopePatterns, "outOfScopePatterns는 null 일 수 없다");
+    timeKeywords = Set.copyOf(Objects.requireNonNull(timeKeywords, "timeKeywords는 null 일 수 없다"));
+    outOfScopePatterns =
+        Set.copyOf(Objects.requireNonNull(outOfScopePatterns, "outOfScopePatterns는 null 일 수 없다"));
     if (missingRefDateThresholdDays < 0) {
       throw new IllegalArgumentException(
           "missingRefDateThresholdDays는 0 이상이어야 한다: " + missingRefDateThresholdDays);

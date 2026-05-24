@@ -22,7 +22,9 @@ public class PromptShield {
   public PromptShield() {
     try {
       ClassPathResource resource = new ClassPathResource(TEMPLATE_PATH);
-      this.template = StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
+      try (var is = resource.getInputStream()) {
+        this.template = StreamUtils.copyToString(is, StandardCharsets.UTF_8);
+      }
     } catch (IOException e) {
       throw new IllegalStateException("PromptShield template 로드 실패: " + TEMPLATE_PATH, e);
     }

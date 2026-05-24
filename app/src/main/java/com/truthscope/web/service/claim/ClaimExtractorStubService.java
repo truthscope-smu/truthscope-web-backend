@@ -5,6 +5,7 @@ import com.truthscope.web.entity.enums.ClaimImportance;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * {@link ClaimExtractorService}의 Sprint 2 stub 구현.
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Service;
 @Deprecated
 @Service
 @Profile("!production")
+@Transactional(readOnly = true)
 public class ClaimExtractorStubService implements ClaimExtractorService {
 
   private static final List<ExtractedClaim> FIXTURE =

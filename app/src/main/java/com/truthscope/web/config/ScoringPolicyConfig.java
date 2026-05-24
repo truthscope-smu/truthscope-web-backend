@@ -31,6 +31,11 @@ public class ScoringPolicyConfig {
       @Value("${truthscope.tier3-reason.missing-ref-date-threshold-days:30}")
           int missingRefDateThresholdDays)
       throws IOException {
+    if (missingRefDateThresholdDays < 0) {
+      throw new IllegalArgumentException(
+          "truthscope.tier3-reason.missing-ref-date-threshold-days 는 0 이상이어야 한다: "
+              + missingRefDateThresholdDays);
+    }
     Set<String> timeKeywords;
     try (InputStream is = timeKeywordsResource.getInputStream()) {
       timeKeywords =

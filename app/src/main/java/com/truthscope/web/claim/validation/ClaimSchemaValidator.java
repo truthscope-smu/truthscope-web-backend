@@ -29,19 +29,7 @@ public class ClaimSchemaValidator {
    * @return true = schema 통과, false = schema 실패 (INSUFFICIENT 후보로 분류 의무)
    */
   public boolean isValid(ClaimDraft draft) {
-    if (draft == null) {
-      return false;
-    }
-    // claim_text: null/blank 거부 + 길이 초과 거부
-    String text = draft.claimText();
-    if (text == null || text.isBlank() || text.length() > MAX_CLAIM_TEXT_LENGTH) {
-      return false;
-    }
-    // is_quoted_claim 이면 speaker_name 의무
-    if (draft.isQuotedClaim() && (draft.speakerName() == null || draft.speakerName().isBlank())) {
-      return false;
-    }
-    return true;
+    return failureReason(draft) == ValidationFailure.NONE;
   }
 
   /** Validation 실패 사유 식별 (테스트/디버깅용). */

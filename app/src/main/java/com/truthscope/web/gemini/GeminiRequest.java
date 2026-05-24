@@ -1,5 +1,6 @@
 package com.truthscope.web.gemini;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 
 /**
@@ -31,7 +32,7 @@ public record GeminiRequest(List<Content> contents, GenerationConfig generationC
    * structured output 포맷.
    *
    * @param mimeType MIME 타입 — {@code "application/json"} 고정
-   * @param schema JSON schema 문자열
+   * @param schema JSON schema 객체 (null = schema 미지정, v2 트랙에서 JsonNode 로 채움)
    */
-  public record ResponseFormat(String mimeType, String schema) {}
+  public record ResponseFormat(String mimeType, JsonNode schema) {}
 }

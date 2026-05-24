@@ -12,6 +12,7 @@ import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimStatusCandidate;
 import com.truthscope.web.service.audit.ApiUsageLogService;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +35,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Profile("production")
+@RequiredArgsConstructor
 public class ClaimAnalysisService implements ClaimAnalysisPort {
 
   private final GeminiClient geminiClient;
@@ -41,19 +43,6 @@ public class ClaimAnalysisService implements ClaimAnalysisPort {
   private final ClaimSchemaValidator schemaValidator;
   private final Tier3ReasonValidator tier3Validator;
   private final ApiUsageLogService apiUsageLogService;
-
-  public ClaimAnalysisService(
-      GeminiClient geminiClient,
-      PromptShield promptShield,
-      ClaimSchemaValidator schemaValidator,
-      Tier3ReasonValidator tier3Validator,
-      ApiUsageLogService apiUsageLogService) {
-    this.geminiClient = geminiClient;
-    this.promptShield = promptShield;
-    this.schemaValidator = schemaValidator;
-    this.tier3Validator = tier3Validator;
-    this.apiUsageLogService = apiUsageLogService;
-  }
 
   @Override
   public List<ClaimDraft> analyze(String articleBody) {

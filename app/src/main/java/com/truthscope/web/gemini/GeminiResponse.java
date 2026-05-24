@@ -15,6 +15,10 @@ import java.util.List;
  */
 public record GeminiResponse(List<ClaimDraft> claims, DecisionSource decisionSource) {
 
+  public GeminiResponse {
+    claims = (claims == null) ? List.of() : List.copyOf(claims);
+  }
+
   /**
    * 응답 불충분 (차단 / 파싱 실패 / CircuitBreaker 개입) 시 생성.
    *
