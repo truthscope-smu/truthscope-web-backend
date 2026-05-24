@@ -1,8 +1,11 @@
 package com.truthscope.web.entity;
 
+import com.truthscope.web.entity.enums.DecisionSource;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -71,6 +74,16 @@ public class VerificationTrace {
 
   @Column(name = "duration_ms", nullable = false)
   private Integer durationMs;
+
+  @Column(name = "prompt_version", length = 50)
+  private String promptVersion;
+
+  @Column(name = "schema_version", length = 50)
+  private String schemaVersion;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "decision_source", length = 30)
+  private DecisionSource decisionSource;
 
   // @CreationTimestamp는 Hibernate 6 문서상 기본 생성원이 VM (in-memory) 단계로 INSERT 시 JPA가
   // LocalDateTime.now()를 채워 보냄. DDL DEFAULT NOW()는 raw SQL 경로(JPA 외부) fallback.

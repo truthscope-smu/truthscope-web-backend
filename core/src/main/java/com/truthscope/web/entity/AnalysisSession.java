@@ -1,6 +1,7 @@
 package com.truthscope.web.entity;
 
 import com.truthscope.web.entity.enums.SessionStatus;
+import com.truthscope.web.scoring.CoverageSummary;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,6 +19,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "analysis_sessions")
@@ -49,8 +52,9 @@ public class AnalysisSession extends BaseTimeEntity {
   @Column(name = "total_score")
   private Short totalScore;
 
-  @Column(name = "coverage", length = 10)
-  private String coverage;
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "coverage", columnDefinition = "jsonb")
+  private CoverageSummary coverage; // Phase 55 D14 정합, JSON 직렬화 (이전 String VARCHAR(10) → JSONB)
 
   @Column(name = "tier1_count")
   private Short tier1Count;

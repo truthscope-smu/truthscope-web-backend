@@ -44,4 +44,21 @@ public class Claim extends BaseTimeEntity {
 
   @Column(name = "sort_order")
   private Short sortOrder;
+
+  @Column(name = "speaker_name", length = 255)
+  private String speakerName;
+
+  @Column(name = "is_quoted_claim", nullable = false)
+  @Builder.Default
+  private boolean isQuotedClaim = false;
+
+  @Column(name = "original_context", columnDefinition = "TEXT")
+  private String originalContext;
+
+  /** Attribution 메타데이터 부착 (BE #76 + ADR-020 SIFT T). ClaimAttributionService 가 호출. */
+  public void attachSpeaker(String speakerName, boolean isQuotedClaim, String originalContext) {
+    this.speakerName = speakerName;
+    this.isQuotedClaim = isQuotedClaim;
+    this.originalContext = originalContext;
+  }
 }

@@ -1,5 +1,6 @@
 package com.truthscope.web.entity;
 
+import com.truthscope.web.entity.enums.Tier3Reason;
 import com.truthscope.web.entity.enums.Verdict;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -62,4 +63,8 @@ public class VerificationResult extends BaseTimeEntity {
 
   @Column(name = "verified_at")
   private LocalDateTime verifiedAt;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "tier3_reason", length = 30)
+  private Tier3Reason tier3Reason;
 }
