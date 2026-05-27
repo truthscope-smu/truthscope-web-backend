@@ -1,68 +1,63 @@
 package com.truthscope.web.integration;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import com.truthscope.web.audit.KeyFingerprinter;
 import com.truthscope.web.entity.ApiUsageLog;
-import com.truthscope.web.entity.enums.DecisionSource;
-import com.truthscope.web.gemini.ClaimAnalysisPayload;
-import com.truthscope.web.gemini.GeminiClient;
-import com.truthscope.web.gemini.GeminiRequest;
-import com.truthscope.web.gemini.GeminiResponse;
 import com.truthscope.web.repository.ApiUsageLogRepository;
 import com.truthscope.web.scoring.ClaimAnalysisPort;
 import com.truthscope.web.scoring.ClaimDraft;
-import com.truthscope.web.scoring.ClaimStatusCandidate;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.util.StreamUtils;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.wiremock.spring.ConfigureWireMock;
+import org.wiremock.spring.EnableWireMock;
+import org.wiremock.spring.InjectWireMock;
 
 /**
- * BE #87 BYOK integration test — BE #74 후속.
+ * BE #87+#92 BYOK 실 HTTP 통합 test — BE #74 후속.
  *
- * <p>PLAN rev.3 commit #9 영역. BE #74 머지된 BYOK 4 시나리오 (SERVER_POOL / BYOK 성공 / BYOK_FAILED+
- * SERVER_POOL_FALLBACK / CB 개입)의 ClaimAnalysisService 분기 + ApiUsageLog audit row 정합을 Spring
- * Testcontainers + 실 DB로 검증.
+ * <p>PLAN rev.3 commit #9 영역 완료 + BE #87 cassette runbook §"후속 phase 실 HTTP 통합 강화 옵션 1" 적용.
+ * `wiremock-spring-boot:3.10.0`의 {@code @EnableWireMock} +
+ * {@code @ConfigureWireMock(baseUrlProperties)}로 Spring Boot Environment에 WireMock URL을 자동 주입 →
+ * production {@link com.truthscope.web.gemini.GeminiClient} + production RestClient bean이 cassette
+ * server로 redirect됨.
  *
- * <p>GeminiClient는 {@code @MockBean}으로 stub — Spring AOP CGLIB proxy + JdkClientHttpRequestFactory
- * + resilience4j @CircuitBreaker 합치되 RestClient bean override가 GeminiClient의 inject path에 적용되지 않는
- * 케이스가 확인되어 실 HTTP 경계 (WireMock cassette) 통합은 별 phase로 이연 (issue #87 후속 트랙). 본 phase는
- * GeminiResponse contract를 stub으로 고정하고 ClaimAnalysisService → ApiUsageLogService → DB audit 경로 4
- * 시나리오를 통합 검증한다.
+ * <p>BE #87에서 시도한 3 패턴 (`@DynamicPropertySource` / `@TestPropertySource` /
+ * `@TestConfiguration @Import`)이 GeminiClient의 RestClient inject path에 반영되지 않은 케이스를
+ * wiremock-spring-boot로 폐쇄. {@code @MockBean GeminiClient} 제거 후 실 HTTP 경계 검증.
  *
  * <p>4 시나리오 (ADR-004 §f "모든 Gemini 호출 기록" 정합):
  *
  * <ul>
  *   <li>S1 SERVER_POOL — userApiKey null → key_source=SERVER_POOL, key_fingerprint=null
- *   <li>S2 BYOK 성공 — 유효 키 200 응답 stub → key_source=BYOK, key_fingerprint=16 hex
- *   <li>S3 BYOK 실패 fallback — authFailed stub → 서버 키 retry → audit 2 row (BYOK_FAILED +
+ *   <li>S2 BYOK 성공 — 유효 키 200 → key_source=BYOK, key_fingerprint=16 hex
+ *   <li>S3 BYOK 실패 fallback — 401 → authFailed → 서버 키 retry → audit 2 row (BYOK_FAILED +
  *       SERVER_POOL_FALLBACK)
- *   <li>S4 CB 개입 — FORCED_OPEN → CallNotPermittedException stub → BYOK 성공 분류 (CB는 backend health
- *       신호이며 키 유효성과 무관) → audit 1 row (BYOK)
+ *   <li>S4 CB 개입 — FORCED_OPEN → CallNotPermittedException → BYOK 성공 분류 → audit 1 row (BYOK)
  * </ul>
  *
- * <p>cassette JSON: {@code src/test/resources/wiremock/gemini-claim-extract-success.json} — 후속
- * phase에서 wiremock-spring-boot 도입 시 record/replay 절차는 {@code
- * .plans/be74-gemini-claim-extractor-2026-05-27/_cassette-runbook.md} 참조.
+ * <p>cassette: {@code src/test/resources/wiremock/gemini-claim-extract-success.json} — record-mode
+ * 갱신 절차는 {@code .plans/be74-gemini-claim-extractor-2026-05-27/_cassette-runbook.md} 참조.
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.NONE,
@@ -74,8 +69,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
     })
 @ActiveProfiles("production")
 @Testcontainers(disabledWithoutDocker = true)
+@EnableWireMock(
+    @ConfigureWireMock(name = "gemini", baseUrlProperties = "truthscope.gemini.base-url"))
 @TestPropertySource(properties = "spring.main.allow-bean-definition-overriding=true")
-@DisplayName("BE #87 BYOK integration test (BE #74 후속)")
+@DisplayName("BE #87+#92 BYOK 실 HTTP 통합 test (BE #74 후속)")
 class GeminiByokIntegrationTest {
 
   @ServiceConnection static final PostgreSQLContainer<?> POSTGRES;
@@ -85,45 +82,58 @@ class GeminiByokIntegrationTest {
     POSTGRES.start();
   }
 
-  @MockBean GeminiClient geminiClient;
+  @InjectWireMock("gemini")
+  WireMockServer wireMock;
 
   @Autowired ClaimAnalysisPort claimAnalysisPort;
   @Autowired ApiUsageLogRepository apiUsageLogRepository;
   @Autowired CircuitBreakerRegistry circuitBreakerRegistry;
 
-  /** cassette JSON의 ClaimAnalysisPayload 정합 fixture — Gemini 정상 응답 1건. */
-  private static GeminiResponse successResponseFromCassette() {
-    ClaimDraft draft =
-        new ClaimDraft(
-            UUID.randomUUID(),
-            "Government announced a 10% budget increase for policy in 2026.",
-            null,
-            false,
-            null,
-            ClaimStatusCandidate.SCORABLE,
-            null);
-    ClaimAnalysisPayload payload = new ClaimAnalysisPayload(List.of()); // unused — drafts 직접 박제
-    return new GeminiResponse(List.of(draft), DecisionSource.GEMINI, false);
-  }
+  @Autowired
+  @org.springframework.beans.factory.annotation.Qualifier("geminiRestClient")
+  org.springframework.web.client.RestClient injectedGeminiRestClient;
+
+  private String cassetteBody;
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws IOException {
+    // wiremock-spring-boot 3.10.0 + JdkClientHttpRequestFactory 조합 quirk warmup —
+    // GeminiClient가 inject받은 RestClient bean이 첫 callStructured 호출 전에 wireMock URL을 정확히 bind하도록
+    // RestClient endpoint 사전 호출 (WireMock /__admin endpoint는 stub 매칭과 무관). 이 warmup 없으면 첫 method 호출
+    // 시 RestClient가 application.yml의 default URL을 사용하는 케이스가 함께 실행 시 관찰됨.
+    injectedGeminiRestClient.get().uri("/__admin/mappings").retrieve().toBodilessEntity();
+
+    wireMock.resetAll();
     apiUsageLogRepository.deleteAll();
     CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("gemini");
     cb.transitionToClosedState();
     cb.reset();
+
+    cassetteBody =
+        StreamUtils.copyToString(
+            new ClassPathResource("wiremock/gemini-claim-extract-success.json").getInputStream(),
+            java.nio.charset.StandardCharsets.UTF_8);
   }
 
   @Test
   @DisplayName("S1 SERVER_POOL — userApiKey null → key_source=SERVER_POOL, key_fingerprint=null")
   void scenario1_serverPool_userApiKeyNull_auditSingleServerPoolRow() {
-    when(geminiClient.callStructured(any(GeminiRequest.class), isNull()))
-        .thenReturn(successResponseFromCassette());
+    wireMock.stubFor(
+        post(urlPathMatching("/v1beta/models/gemini-3\\.1-flash-lite:generateContent"))
+            .withHeader("x-goog-api-key", equalTo("test-server-key"))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json;charset=UTF-8")
+                    .withBody(cassetteBody)));
 
     List<ClaimDraft> drafts =
         claimAnalysisPort.analyze("Government announced policy budget article body.", null);
 
     assertThat(drafts).hasSize(1);
+    assertThat(wireMock.getAllServeEvents()).hasSize(1);
+    assertThat(wireMock.getAllServeEvents().get(0).getWasMatched()).isTrue();
+
     List<ApiUsageLog> logs = apiUsageLogRepository.findAll();
     assertThat(logs).hasSize(1);
     ApiUsageLog row = logs.get(0);
@@ -131,8 +141,6 @@ class GeminiByokIntegrationTest {
     assertThat(row.getKeySource()).isEqualTo("SERVER_POOL");
     assertThat(row.getKeyFingerprint()).isNull();
     assertThat(row.getRequestCount()).isEqualTo(1);
-
-    verify(geminiClient, times(1)).callStructured(any(GeminiRequest.class), isNull());
   }
 
   @Test
@@ -141,13 +149,22 @@ class GeminiByokIntegrationTest {
     String userKey = "user-byok-valid-key-001";
     String expectedFingerprint = KeyFingerprinter.fingerprint(userKey);
 
-    when(geminiClient.callStructured(any(GeminiRequest.class), eq(userKey)))
-        .thenReturn(successResponseFromCassette());
+    wireMock.stubFor(
+        post(urlPathMatching("/v1beta/models/gemini-3\\.1-flash-lite:generateContent"))
+            .withHeader("x-goog-api-key", equalTo(userKey))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json;charset=UTF-8")
+                    .withBody(cassetteBody)));
 
     List<ClaimDraft> drafts =
         claimAnalysisPort.analyze("Government announced policy budget article body.", userKey);
 
     assertThat(drafts).hasSize(1);
+    assertThat(wireMock.getAllServeEvents()).hasSize(1);
+    assertThat(wireMock.getAllServeEvents().get(0).getWasMatched()).isTrue();
+
     List<ApiUsageLog> logs = apiUsageLogRepository.findAll();
     assertThat(logs).hasSize(1);
     ApiUsageLog row = logs.get(0);
@@ -155,25 +172,37 @@ class GeminiByokIntegrationTest {
     assertThat(row.getKeySource()).isEqualTo("BYOK");
     assertThat(row.getKeyFingerprint()).isEqualTo(expectedFingerprint);
     assertThat(row.getKeyFingerprint()).hasSize(16);
-
-    verify(geminiClient, times(1)).callStructured(any(GeminiRequest.class), eq(userKey));
   }
 
   @Test
-  @DisplayName("S3 BYOK 실패 fallback — authFailed → 서버 키 retry → audit 2 row")
+  @DisplayName("S3 BYOK 실패 fallback — 401 → authFailed → 서버 키 retry → audit 2 row")
   void scenario3_byokAuthFailed_fallbackToServerPool_auditTwoRows() {
     String badUserKey = "user-byok-bad-key-401";
     String expectedFingerprint = KeyFingerprinter.fingerprint(badUserKey);
 
-    when(geminiClient.callStructured(any(GeminiRequest.class), eq(badUserKey)))
-        .thenReturn(GeminiResponse.authFailed());
-    when(geminiClient.callStructured(any(GeminiRequest.class), isNull()))
-        .thenReturn(successResponseFromCassette());
+    wireMock.stubFor(
+        post(urlPathMatching("/v1beta/models/gemini-3\\.1-flash-lite:generateContent"))
+            .withHeader("x-goog-api-key", equalTo(badUserKey))
+            .willReturn(
+                aResponse()
+                    .withStatus(401)
+                    .withHeader("Content-Type", "application/json;charset=UTF-8")
+                    .withBody("{\"error\":{\"code\":401,\"message\":\"API key not valid\"}}")));
+
+    wireMock.stubFor(
+        post(urlPathMatching("/v1beta/models/gemini-3\\.1-flash-lite:generateContent"))
+            .withHeader("x-goog-api-key", equalTo("test-server-key"))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json;charset=UTF-8")
+                    .withBody(cassetteBody)));
 
     List<ClaimDraft> drafts =
         claimAnalysisPort.analyze("Government announced policy budget article body.", badUserKey);
 
     assertThat(drafts).hasSize(1);
+    assertThat(wireMock.getAllServeEvents()).hasSize(2);
 
     List<ApiUsageLog> logs = apiUsageLogRepository.findAll();
     assertThat(logs).hasSize(2);
@@ -189,33 +218,28 @@ class GeminiByokIntegrationTest {
             .findFirst()
             .orElseThrow();
     assertThat(serverPoolFallbackRow.getKeyFingerprint()).isNull();
-
-    verify(geminiClient, times(1)).callStructured(any(GeminiRequest.class), eq(badUserKey));
-    verify(geminiClient, times(1)).callStructured(any(GeminiRequest.class), isNull());
   }
 
   @Test
-  @DisplayName("S4 CB 개입 — CIRCUIT_BREAKER insufficient → BYOK 성공 분류 → audit 1 row (BYOK)")
-  void scenario4_circuitBreakerInsufficient_byokClassifiedAsSuccess_auditByokRow() {
+  @DisplayName("S4 CB 개입 — FORCED_OPEN → BYOK 성공 분류 (키 유효성 무관) → audit 1 row (BYOK)")
+  void scenario4_circuitBreakerForcedOpen_byokClassifiedAsSuccess_auditByokRow() {
     String userKey = "user-byok-valid-key-cb";
     String expectedFingerprint = KeyFingerprinter.fingerprint(userKey);
 
-    // CB 개입은 backend health 신호 — ClaimAnalysisService에서 authFailure=false이므로 BYOK 성공 분류.
-    // GeminiClient.fallbackStructured가 반환할 CIRCUIT_BREAKER insufficient를 직접 stub.
-    when(geminiClient.callStructured(any(GeminiRequest.class), eq(userKey)))
-        .thenReturn(GeminiResponse.insufficient(DecisionSource.CIRCUIT_BREAKER));
+    CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("gemini");
+    cb.transitionToForcedOpenState();
+    assertThat(cb.getState()).isEqualTo(CircuitBreaker.State.FORCED_OPEN);
 
     List<ClaimDraft> drafts =
         claimAnalysisPort.analyze("Government announced policy budget article body.", userKey);
 
     assertThat(drafts).isEmpty();
+    assertThat(wireMock.getAllServeEvents()).isEmpty();
 
     List<ApiUsageLog> logs = apiUsageLogRepository.findAll();
     assertThat(logs).hasSize(1);
     ApiUsageLog row = logs.get(0);
     assertThat(row.getKeySource()).isEqualTo("BYOK");
     assertThat(row.getKeyFingerprint()).isEqualTo(expectedFingerprint);
-
-    verify(geminiClient, times(1)).callStructured(any(GeminiRequest.class), eq(userKey));
   }
 }
