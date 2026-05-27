@@ -6,8 +6,8 @@ import java.util.List;
 /**
  * Article 본문에서 사실 주장(claim)을 추출하고 정규화하는 input port.
  *
- * <p>Sprint 3 실구현체는 {@code gemini-3.1-flash-lite-preview} (1순위) / {@code gemini-2.5-flash-lite}
- * (폴백) 모델을 호출한다. {@code gemini-2.0-flash-lite}는 본 프로젝트에서 사용하지 않는다.
+ * <p>Sprint 3 실구현체는 {@code gemini-3.1-flash-lite} (1순위) / {@code gemini-2.5-flash-lite} (폴백) 모델을
+ * 호출한다. {@code gemini-2.0-flash-lite}는 본 프로젝트에서 사용하지 않는다.
  *
  * <p>Sprint 2 현 시점은 contract 확정용 stub({@link ClaimExtractorStubService})만 제공. Sprint 3에서 stub을 실 호출
  * 구현체로 교체할 때 본 인터페이스는 그대로 유지된다.

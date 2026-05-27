@@ -13,7 +13,7 @@
 | `@Setter` on Entity / `@Data` / `@ToString` on Entity | ArchUnit 룰 — `entityShouldNotExposeSetters` 통과 의무 |
 | `EntityType.ORDINAL` (Enum 매핑) | `@Enumerated(EnumType.STRING)` 강제 — 컬럼 추가/순서 변경 시 데이터 손상 방지 |
 | `FetchType.EAGER` 관계 매핑 | 모든 관계는 `LAZY` 의무 — N+1 회피 |
-| `gemini-2.0-flash-lite` 모델 사용/언급 | 1순위 `gemini-3.1-flash-lite-preview` / 2순위 `gemini-2.5-flash-lite`만 허용 |
+| `gemini-2.0-flash-lite` 모델 사용/언급 | 1순위 `gemini-3.1-flash-lite` / 2순위 `gemini-2.5-flash-lite`만 허용 |
 | `--no-verify` git push (pre-commit/CI hook 우회) | hook 실패 시 원인 수정 의무 |
 | `springdoc-openapi 2.8.6 이하` | Spring Boot 3.5.x 비호환 (HateoasProperties NoSuchMethodError) — **2.8.9+ 필수** |
 
