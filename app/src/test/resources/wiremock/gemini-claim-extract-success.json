@@ -1,0 +1,22 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"claims\":[{\"claim_text\":\"Government announced a 10% budget increase for policy in 2026.\",\"speaker_name\":null,\"is_quoted_claim\":false,\"original_context\":null,\"claim_status_candidate\":\"SCORABLE\",\"split_group\":null}]}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "promptFeedback": null,
+  "usageMetadata": {
+    "promptTokenCount": 50,
+    "candidatesTokenCount": 30,
+    "totalTokenCount": 80
+  }
+}
