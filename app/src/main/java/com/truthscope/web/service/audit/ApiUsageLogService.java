@@ -41,6 +41,7 @@ public class ApiUsageLogService {
             .usageDate(LocalDate.now())
             .requestCount(1)
             .tokenCount(tokenCount)
+            .keySource("SERVER_POOL")
             .build();
     repository.save(log);
   }
