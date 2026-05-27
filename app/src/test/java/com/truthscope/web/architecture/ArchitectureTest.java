@@ -188,4 +188,38 @@ class ArchitectureTest {
           .allowEmptyShould(true)
           .because(
               "ADR-004 §f userApiKey log redaction — BYOK 처리 클래스(ClaimAnalysisService + GeminiClient)는 SLF4J Logger field 금지. Logger field 부재로 userApiKey 원본 log 박제 path 정적 차단. logging 필요 시 AOP @Around 분리 또는 KeyFingerprinter 결과만 박제.");
+
+  // ── PromptShield 접근 제한 (BE #72 S3-02) ──
+
+  /**
+   * PromptShield 는 Service 레이어에서만 접근 가능. Controller 가 직접 호출하면 프롬프트 조립 로직이 Controller 에 노출되어 레이어 위반.
+   */
+  @ArchTest
+  static final ArchRule promptComponentAccessRule =
+      noClasses()
+          .that()
+          .resideInAPackage("..controller..")
+          .should()
+          .dependOnClassesThat()
+          .resideInAPackage("..prompt..")
+          .allowEmptyShould(true)
+          .because(
+              "BE #72 S3-02: PromptShield 는 Service 레이어에서만 호출. Controller 직접 접근 시"
+                  + " 프롬프트 조립 로직이 HTTP 레이어에 노출됨.");
+
+  /**
+   * prompt 패키지 클래스는 @Service 가 아닌 @Component — serviceNaming 룰 적용 면제 박제. 이 룰 자체는 검증 룰이 아니라 의도 박제용 —
+   * allowEmptyShould(true) 유지.
+   */
+  @ArchTest
+  static final ArchRule promptPackageNamingExempt =
+      classes()
+          .that()
+          .resideInAPackage("..prompt..")
+          .should()
+          .notBeAnnotatedWith(org.springframework.stereotype.Service.class)
+          .allowEmptyShould(true)
+          .because(
+              "BE #72: prompt 패키지 클래스는 @Component (NOT @Service) — serviceNaming 룰"
+                  + " 적용 대상에서 자동 제외됨을 코드 레벨에서 명문화.");
 }
