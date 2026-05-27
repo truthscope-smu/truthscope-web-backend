@@ -116,7 +116,7 @@ class GeminiClientTest {
     GeminiGenerateContentResponse wrapper = buildSuccessWrapper("정부는 GDP 성장률 3%를 발표했다.");
     stubRestClient(wrapper);
 
-    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST);
+    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST, null);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).hasSize(1);
@@ -135,7 +135,7 @@ class GeminiClientTest {
     CallNotPermittedException cbException =
         CallNotPermittedException.createCallNotPermittedException(cbMock);
 
-    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, cbException);
+    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, null, cbException);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.CIRCUIT_BREAKER);
     assertThat(response.claims()).isEmpty();
@@ -148,7 +148,7 @@ class GeminiClientTest {
         HttpClientErrorException.create(
             org.springframework.http.HttpStatus.BAD_REQUEST, "Bad Request", null, null, null);
 
-    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, badRequest);
+    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, null, badRequest);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).isEmpty();
@@ -161,7 +161,7 @@ class GeminiClientTest {
         HttpClientErrorException.create(
             org.springframework.http.HttpStatus.FORBIDDEN, "Forbidden", null, null, null);
 
-    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, forbidden);
+    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, null, forbidden);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).isEmpty();
@@ -181,7 +181,7 @@ class GeminiClientTest {
     doReturn(fallbackWrapper).when(responseSpec).body(GeminiGenerateContentResponse.class);
 
     RuntimeException serverError = new RuntimeException("503 Service Unavailable");
-    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, serverError);
+    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, null, serverError);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).hasSize(1);
@@ -194,7 +194,7 @@ class GeminiClientTest {
     when(restClient.post()).thenThrow(new RuntimeException("네트워크 불가"));
 
     RuntimeException primaryError = new RuntimeException("1차 5xx 오류");
-    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, primaryError);
+    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, null, primaryError);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.HEURISTIC_FALLBACK);
     assertThat(response.claims()).isEmpty();
@@ -216,7 +216,7 @@ class GeminiClientTest {
 
     stubRestClient(wrapper);
 
-    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST);
+    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST, null);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).isEmpty();
@@ -236,7 +236,7 @@ class GeminiClientTest {
 
     stubRestClient(wrapper);
 
-    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST);
+    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST, null);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).isEmpty();
@@ -256,7 +256,7 @@ class GeminiClientTest {
 
     stubRestClient(wrapper);
 
-    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST);
+    GeminiResponse response = geminiClient.callStructured(DUMMY_REQUEST, null);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).isEmpty();
@@ -275,7 +275,7 @@ class GeminiClientTest {
     doReturn(fallbackWrapper).when(responseSpec).body(GeminiGenerateContentResponse.class);
 
     ResourceAccessException timeout = new ResourceAccessException("Read timed out");
-    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, timeout);
+    GeminiResponse response = geminiClient.fallbackStructured(DUMMY_REQUEST, null, timeout);
 
     assertThat(response.decisionSource()).isEqualTo(DecisionSource.GEMINI);
     assertThat(response.claims()).hasSize(1);

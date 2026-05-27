@@ -235,7 +235,7 @@ class VerificationPipelineIntegrationTest {
       ClaimDraft scorableDraft =
           new ClaimDraft(
               UUID.randomUUID(), claimText, null, false, null, ClaimStatusCandidate.SCORABLE, null);
-      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+      when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of(scorableDraft));
 
       // When: POST /api/v1/analysis-sessions
       MvcResult result =
@@ -333,7 +333,7 @@ class VerificationPipelineIntegrationTest {
               null,
               ClaimStatusCandidate.SCORABLE,
               null);
-      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+      when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of(scorableDraft));
 
       // When: POST
       MvcResult result =
@@ -408,7 +408,7 @@ class VerificationPipelineIntegrationTest {
       ClaimDraft scorableDraft =
           new ClaimDraft(
               claimId, claimText, null, false, null, ClaimStatusCandidate.SCORABLE, null);
-      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+      when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of(scorableDraft));
 
       // When: production 흐름 → POST + Aggregator static method 직접 호출
       mockMvc
@@ -473,7 +473,7 @@ class VerificationPipelineIntegrationTest {
       ClaimDraft scorableDraft =
           new ClaimDraft(
               UUID.randomUUID(), claimText, null, false, null, ClaimStatusCandidate.SCORABLE, null);
-      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+      when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of(scorableDraft));
 
       // When + Then: JSON path + Content-Type 정합
       String uuidRegex =
@@ -535,7 +535,7 @@ class VerificationPipelineIntegrationTest {
               null,
               ClaimStatusCandidate.INSUFFICIENT_CANDIDATE,
               null);
-      when(claimAnalysisPort.analyze(anyString()))
+      when(claimAnalysisPort.analyze(anyString(), any()))
           .thenReturn(List.of(scorableDraft, insufficientDraft));
 
       // factcheck_cache: SCORABLE만 hit + INSUFFICIENT는 miss
@@ -637,7 +637,7 @@ class VerificationPipelineIntegrationTest {
               null,
               ClaimStatusCandidate.SCORABLE,
               null);
-      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(scorableDraft));
+      when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of(scorableDraft));
 
       // When
       MvcResult result =
@@ -689,7 +689,7 @@ class VerificationPipelineIntegrationTest {
               .domain("example.com")
               .build();
       when(contentExtractService.extract(anyString())).thenReturn(fixtureArticle);
-      when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of());
+      when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of());
 
       // When
       MvcResult result =

@@ -68,7 +68,7 @@ class ClaimAnalysisServiceTest {
     List<ClaimDraft> result = service.analyze(null);
 
     assertThat(result).isEmpty();
-    verify(geminiClient, never()).callStructured(any());
+    verify(geminiClient, never()).callStructured(any(), any());
   }
 
   @Test
@@ -77,17 +77,17 @@ class ClaimAnalysisServiceTest {
     List<ClaimDraft> result = service.analyze("   ");
 
     assertThat(result).isEmpty();
-    verify(geminiClient, never()).callStructured(any());
+    verify(geminiClient, never()).callStructured(any(), any());
   }
 
   @Test
   @DisplayName("Gemini_정상_호출_schema_통과_tier3_empty시_SCORABLE_ClaimDraft_반환")
   void gemini_정상_schema_통과_tier3_empty_SCORABLE_반환() {
     ClaimDraft geminDraft = buildDraft("정부 발표 claim", ClaimStatusCandidate.SCORABLE);
-    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI);
+    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI, false);
 
     when(promptShield.assemble(SAMPLE_ARTICLE)).thenReturn(ASSEMBLED_PROMPT);
-    when(geminiClient.callStructured(any(GeminiRequest.class))).thenReturn(response);
+    when(geminiClient.callStructured(any(GeminiRequest.class), any())).thenReturn(response);
     when(schemaValidator.isValid(geminDraft)).thenReturn(true);
     when(tier3Validator.validate(geminDraft)).thenReturn(Optional.empty());
 
@@ -95,17 +95,17 @@ class ClaimAnalysisServiceTest {
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).claimStatusCandidate()).isEqualTo(ClaimStatusCandidate.SCORABLE);
-    verify(apiUsageLogService, times(1)).record(anyString(), anyInt());
+    verify(apiUsageLogService, times(1)).record(anyString(), anyInt(), anyString(), any());
   }
 
   @Test
   @DisplayName("Gemini_정상_호출_schema_실패시_INSUFFICIENT_CANDIDATE_강제")
   void schemaValidator_실패_INSUFFICIENT_CANDIDATE_강제() {
     ClaimDraft geminDraft = buildDraft("", ClaimStatusCandidate.SCORABLE);
-    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI);
+    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI, false);
 
     when(promptShield.assemble(SAMPLE_ARTICLE)).thenReturn(ASSEMBLED_PROMPT);
-    when(geminiClient.callStructured(any(GeminiRequest.class))).thenReturn(response);
+    when(geminiClient.callStructured(any(GeminiRequest.class), any())).thenReturn(response);
     when(schemaValidator.isValid(geminDraft)).thenReturn(false);
 
     List<ClaimDraft> result = service.analyze(SAMPLE_ARTICLE);
@@ -121,10 +121,10 @@ class ClaimAnalysisServiceTest {
   @DisplayName("Gemini_정상_호출_tier3_OUT_OF_SCOPE시_OUT_OF_SCOPE_CANDIDATE_강제")
   void tier3Validator_OUT_OF_SCOPE_candidate_강제() {
     ClaimDraft geminDraft = buildDraft("정치적 의견", ClaimStatusCandidate.SCORABLE);
-    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI);
+    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI, false);
 
     when(promptShield.assemble(SAMPLE_ARTICLE)).thenReturn(ASSEMBLED_PROMPT);
-    when(geminiClient.callStructured(any(GeminiRequest.class))).thenReturn(response);
+    when(geminiClient.callStructured(any(GeminiRequest.class), any())).thenReturn(response);
     when(schemaValidator.isValid(geminDraft)).thenReturn(true);
     when(tier3Validator.validate(geminDraft))
         .thenReturn(Optional.of(HeuristicValidator.Tier3ReasonCandidate.OUT_OF_SCOPE));
@@ -140,10 +140,10 @@ class ClaimAnalysisServiceTest {
   @DisplayName("Gemini_정상_호출_tier3_TIME_SENSITIVE시_TIME_SENSITIVE_CANDIDATE_강제")
   void tier3Validator_TIME_SENSITIVE_candidate_강제() {
     ClaimDraft geminDraft = buildDraft("현재 상황 주장", ClaimStatusCandidate.SCORABLE);
-    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI);
+    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI, false);
 
     when(promptShield.assemble(SAMPLE_ARTICLE)).thenReturn(ASSEMBLED_PROMPT);
-    when(geminiClient.callStructured(any(GeminiRequest.class))).thenReturn(response);
+    when(geminiClient.callStructured(any(GeminiRequest.class), any())).thenReturn(response);
     when(schemaValidator.isValid(geminDraft)).thenReturn(true);
     when(tier3Validator.validate(geminDraft))
         .thenReturn(Optional.of(HeuristicValidator.Tier3ReasonCandidate.TIME_SENSITIVE));
@@ -159,10 +159,10 @@ class ClaimAnalysisServiceTest {
   @DisplayName("Gemini_정상_호출_tier3_INSUFFICIENT시_INSUFFICIENT_CANDIDATE_강제")
   void tier3Validator_INSUFFICIENT_candidate_강제() {
     ClaimDraft geminDraft = buildDraft("근거 없는 주장", ClaimStatusCandidate.SCORABLE);
-    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI);
+    GeminiResponse response = new GeminiResponse(List.of(geminDraft), DecisionSource.GEMINI, false);
 
     when(promptShield.assemble(SAMPLE_ARTICLE)).thenReturn(ASSEMBLED_PROMPT);
-    when(geminiClient.callStructured(any(GeminiRequest.class))).thenReturn(response);
+    when(geminiClient.callStructured(any(GeminiRequest.class), any())).thenReturn(response);
     when(schemaValidator.isValid(geminDraft)).thenReturn(true);
     when(tier3Validator.validate(geminDraft))
         .thenReturn(Optional.of(HeuristicValidator.Tier3ReasonCandidate.INSUFFICIENT));
@@ -177,14 +177,14 @@ class ClaimAnalysisServiceTest {
   @Test
   @DisplayName("ApiUsageLogService_record_가_항상_호출된다")
   void apiUsageLogService_record_항상_호출() {
-    GeminiResponse emptyResponse = new GeminiResponse(List.of(), DecisionSource.GEMINI);
+    GeminiResponse emptyResponse = new GeminiResponse(List.of(), DecisionSource.GEMINI, false);
 
     when(promptShield.assemble(SAMPLE_ARTICLE)).thenReturn(ASSEMBLED_PROMPT);
-    when(geminiClient.callStructured(any(GeminiRequest.class))).thenReturn(emptyResponse);
+    when(geminiClient.callStructured(any(GeminiRequest.class), any())).thenReturn(emptyResponse);
 
     service.analyze(SAMPLE_ARTICLE);
 
-    verify(apiUsageLogService, times(1)).record("GEMINI", 0);
+    verify(apiUsageLogService, times(1)).record("GEMINI", 0, "SERVER_POOL", null);
   }
 
   @Test
@@ -192,10 +192,11 @@ class ClaimAnalysisServiceTest {
   void 여러_claim_각각_validator_독립_적용() {
     ClaimDraft draft1 = buildDraft("정상 claim", ClaimStatusCandidate.SCORABLE);
     ClaimDraft draft2 = buildDraft("빈 텍스트", ClaimStatusCandidate.SCORABLE);
-    GeminiResponse response = new GeminiResponse(List.of(draft1, draft2), DecisionSource.GEMINI);
+    GeminiResponse response =
+        new GeminiResponse(List.of(draft1, draft2), DecisionSource.GEMINI, false);
 
     when(promptShield.assemble(SAMPLE_ARTICLE)).thenReturn(ASSEMBLED_PROMPT);
-    when(geminiClient.callStructured(any(GeminiRequest.class))).thenReturn(response);
+    when(geminiClient.callStructured(any(GeminiRequest.class), any())).thenReturn(response);
     when(schemaValidator.isValid(draft1)).thenReturn(true);
     when(schemaValidator.isValid(draft2)).thenReturn(false);
     when(tier3Validator.validate(draft1)).thenReturn(Optional.empty());

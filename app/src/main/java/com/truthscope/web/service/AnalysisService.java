@@ -18,6 +18,7 @@ import com.truthscope.web.scoring.SourceTransparencySummary;
 import com.truthscope.web.scoring.TruthLabel;
 import com.truthscope.web.scoring.TruthLabelDeriver;
 import com.truthscope.web.service.verification.VerificationCascadeService;
+import jakarta.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,10 +58,10 @@ public class AnalysisService {
    *
    * <p>어느 단계에서든 RuntimeException 발생 시 세션을 FAILED로 전이한다. markFailed 자체 실패 시 원본 예외에 suppressed로 추가.
    */
-  public AnalysisResponse analyze(AnalysisRequest request) {
+  public AnalysisResponse analyze(AnalysisRequest request, @Nullable String userApiKey) {
     UUID sessionId = transactionService.createPendingSession();
     try {
-      return runPipeline(request, sessionId);
+      return runPipeline(request, sessionId, userApiKey);
     } catch (RuntimeException ex) {
       try {
         transactionService.markFailed(sessionId);
@@ -71,14 +72,20 @@ public class AnalysisService {
     }
   }
 
-  private AnalysisResponse runPipeline(AnalysisRequest request, UUID sessionId) {
+  /** Backward compat — userApiKey null 위임. */
+  public AnalysisResponse analyze(AnalysisRequest request) {
+    return analyze(request, null);
+  }
+
+  private AnalysisResponse runPipeline(
+      AnalysisRequest request, UUID sessionId, @Nullable String userApiKey) {
     ExtractedArticle extracted = contentExtractService.extract(request.url());
     UUID articleId =
         transactionService
             .persistArticleAndUpdateStatus(sessionId, request.url(), extracted)
             .getArticleId();
 
-    List<ClaimDraft> drafts = claimAnalysisPort.analyze(extracted.getBody());
+    List<ClaimDraft> drafts = claimAnalysisPort.analyze(extracted.getBody(), userApiKey);
     List<com.truthscope.web.entity.Claim> savedClaims =
         transactionService.persistClaims(articleId, drafts);
     List<ClaimVerificationSignal> signals = verificationCascadeService.cascade(drafts);
