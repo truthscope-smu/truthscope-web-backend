@@ -70,19 +70,33 @@ public class WikipediaAdapter implements WikipediaMetaSource {
     if (query == null) throw new IllegalArgumentException("query는 null 금지");
 
     String title = query.keyword();
-    RawResponse raw;
+    if (title == null || title.isBlank()) {
+      throw new IllegalArgumentException("query.keyword()는 null/blank 금지");
+    }
+
+    // CR review fix: ko 호출이 RestClientException 으로 실패해도 en fallback 시도.
+    // 이전 구현은 catch 에서 즉시 빈 리스트 반환 → en fallback 미동작.
+    RawResponse raw = null;
     try {
-      // 1. 한국어 Wikipedia 시도
       RawResponse koResponse = fetchSummaryInternal(koBaseUrl, title, "ko");
       if (koResponse.statusCode() == 200 && !koResponse.body().isBlank()) {
         raw = koResponse;
-      } else {
-        // 2. 영어 fallback
-        raw = fetchSummaryInternal(enBaseUrl, title, "en");
       }
     } catch (RestClientException ex) {
-      log.warn("WikipediaAdapter.fetchMetaSignal 실패 title={} error={}", title, ex.getMessage());
-      return List.of();
+      log.warn(
+          "WikipediaAdapter ko 호출 실패 — en fallback 시도. title={} error={}", title, ex.getMessage());
+    }
+
+    if (raw == null) {
+      try {
+        raw = fetchSummaryInternal(enBaseUrl, title, "en");
+      } catch (RestClientException ex) {
+        log.warn(
+            "WikipediaAdapter en fallback 도 실패 — 빈 리스트 반환. title={} error={}",
+            title,
+            ex.getMessage());
+        return List.of();
+      }
     }
     // parseAsMetaSignal() 내부에서 vandalism 체크 + WikipediaMetaSignal 생성
     return parseAsMetaSignal(raw);
@@ -215,7 +229,9 @@ public class WikipediaAdapter implements WikipediaMetaSource {
             .get()
             .uri(SUMMARY_PATH, title)
             .header("Accept", "application/json")
-            .header("User-Agent", "TruthScope/1.0 (gwonseok02@gmail.com)")
+            .header(
+                "User-Agent",
+                "TruthScope-backend/1.0 (+https://github.com/truthscope-smu/truthscope-web-backend)")
             .retrieve()
             .toEntity(String.class);
     return new RawResponse(

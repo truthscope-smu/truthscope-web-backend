@@ -34,6 +34,9 @@ public record WikipediaMetaResult(
     boolean factcheckCacheable) {
 
   public WikipediaMetaResult {
+    if (vandalismStatus == null)
+      throw new IllegalArgumentException(
+          "WikipediaMetaResult.vandalismStatus는 null 금지 — 안정성 판정 누락 시 UNKNOWN 명시");
     if (tier != 2) throw new IllegalArgumentException("WikipediaMetaResult.tier는 반드시 2이어야 한다");
     if (!disclaimerRequired)
       throw new IllegalArgumentException("WikipediaMetaResult.disclaimerRequired는 반드시 true이어야 한다");
