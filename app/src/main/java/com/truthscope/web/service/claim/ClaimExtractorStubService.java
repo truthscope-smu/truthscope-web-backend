@@ -10,9 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * {@link ClaimExtractorService}의 Sprint 2 stub 구현.
  *
- * <p>실제 Gemini API 호출 대신 fixture 3건을 반환한다. Sprint 3에서 {@code gemini-3.1-flash-lite-preview} (1순위) /
- * {@code gemini-2.5-flash-lite} (폴백) 호출 구현체로 교체된다. {@code gemini-2.0-flash-lite}는 본 프로젝트에서 사용하지
- * 않는다.
+ * <p>실제 Gemini API 호출 대신 fixture 3건을 반환한다. Sprint 3에서 {@code gemini-3.1-flash-lite} (1순위) / {@code
+ * gemini-2.5-flash-lite} (폴백) 호출 구현체로 교체된다. {@code gemini-2.0-flash-lite}는 본 프로젝트에서 사용하지 않는다.
  *
  * <p>stub은 Spring Context에서 단일 빈으로 등록된다. Sprint 3 실구현체 도입 시 본 stub의 {@code @Service}를 제거하거나
  * {@code @Profile("!production")}으로 격리한다.

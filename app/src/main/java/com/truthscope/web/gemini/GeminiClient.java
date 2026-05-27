@@ -18,7 +18,8 @@ import org.springframework.web.client.RestClient;
  * <p>PLAN §4-1 rev.5 amend 정합:
  *
  * <ul>
- *   <li>{@link #PRIMARY_MODEL} = {@code gemini-3.1-flash-lite-preview} (domain-logic.md lock)
+ *   <li>{@link #PRIMARY_MODEL} = {@code gemini-3.1-flash-lite} (domain-logic.md lock, 2026-05-27 GA
+ *       전환으로 -preview 제거)
  *   <li>{@link #FALLBACK_MODEL} = {@code gemini-2.5-flash-lite} (domain-logic.md lock)
  *   <li>2단계 파싱: {@link GeminiGenerateContentResponse} wrapper 역직렬화 → {@code parts[0].text} 추출 →
  *       {@link ClaimAnalysisPayload} 역직렬화 (rev.5 amend Round 4 CX4-1)
@@ -32,7 +33,7 @@ import org.springframework.web.client.RestClient;
 @Profile("production")
 public class GeminiClient {
 
-  private static final String PRIMARY_MODEL = "gemini-3.1-flash-lite-preview";
+  private static final String PRIMARY_MODEL = "gemini-3.1-flash-lite";
   private static final String FALLBACK_MODEL = "gemini-2.5-flash-lite";
 
   private final RestClient restClient;

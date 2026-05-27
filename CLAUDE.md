@@ -99,6 +99,6 @@
 
 ## Gemini 모델 — 절대 변경 금지
 
-- 1순위: `gemini-3.1-flash-lite-preview`
+- 1순위: `gemini-3.1-flash-lite` (2026-05-27 GA 전환으로 `-preview` 제거)
 - 2순위 폴백: `gemini-2.5-flash-lite`
 - `gemini-2.0-flash-lite` 언급/사용 금지
