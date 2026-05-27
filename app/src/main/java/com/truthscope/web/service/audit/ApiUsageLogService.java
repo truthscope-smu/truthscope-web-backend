@@ -2,6 +2,7 @@ package com.truthscope.web.service.audit;
 
 import com.truthscope.web.entity.ApiUsageLog;
 import com.truthscope.web.repository.ApiUsageLogRepository;
+import jakarta.annotation.Nullable;
 import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,13 +36,27 @@ public class ApiUsageLogService {
    * @param tokenCount 토큰 사용량 (0 이면 unknown)
    */
   public void record(String provider, int tokenCount) {
+    record(provider, tokenCount, "SERVER_POOL", null);
+  }
+
+  /**
+   * BE #74 amend — BYOK 분류 + key fingerprint 기록.
+   *
+   * @param provider API provider 이름 (예: "GEMINI")
+   * @param tokenCount 토큰 사용량 (0 이면 unknown)
+   * @param keySource 키 source 분류 — BYOK / SERVER_POOL / BYOK_FAILED / SERVER_POOL_FALLBACK
+   * @param keyFingerprint SHA-256 hex 앞 16자 (BYOK 키 사용 시). 서버 키 사용 시 null.
+   */
+  public void record(
+      String provider, int tokenCount, String keySource, @Nullable String keyFingerprint) {
     ApiUsageLog log =
         ApiUsageLog.builder()
             .provider(provider)
             .usageDate(LocalDate.now())
             .requestCount(1)
             .tokenCount(tokenCount)
-            .keySource("SERVER_POOL")
+            .keySource(keySource)
+            .keyFingerprint(keyFingerprint)
             .build();
     repository.save(log);
   }
