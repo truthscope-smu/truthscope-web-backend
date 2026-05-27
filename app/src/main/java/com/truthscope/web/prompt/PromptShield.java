@@ -50,6 +50,9 @@ public class PromptShield {
    * @throws IllegalStateException template 파일 로드 실패 시
    */
   public String loadCoVeTemplate(CoVeStep step) {
+    if (step == null) {
+      throw new IllegalArgumentException("CoVeStep 은 null 일 수 없다");
+    }
     String path = COVE_TEMPLATE_BASE + step.filename();
     try {
       ClassPathResource resource = new ClassPathResource(path);

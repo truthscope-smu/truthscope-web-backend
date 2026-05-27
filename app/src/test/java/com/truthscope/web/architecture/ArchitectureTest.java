@@ -192,20 +192,27 @@ class ArchitectureTest {
   // ── PromptShield 접근 제한 (BE #72 S3-02) ──
 
   /**
-   * PromptShield 는 Service 레이어에서만 접근 가능. Controller 가 직접 호출하면 프롬프트 조립 로직이 Controller 에 노출되어 레이어 위반.
+   * PromptShield 는 Service 레이어에서만 접근 가능. Service 외 모든 패키지(Controller/Repository/Config 등)가 prompt
+   * 패키지에 의존하면 프롬프트 조립 로직이 부적절한 레이어에 노출되어 레이어 위반. prompt 패키지 내부 자기 의존은 허용.
+   *
+   * <p>CodeRabbit 리뷰 반영 (Service 외 패키지 전체 차단 확대) — 본래 Controller 만 차단했으나 Repository/Config 등이
+   * prompt 의존하는 경로도 차단해야 정합.
    */
   @ArchTest
   static final ArchRule promptComponentAccessRule =
       noClasses()
           .that()
-          .resideInAPackage("..controller..")
+          .resideOutsideOfPackage("..service..")
+          .and()
+          .resideOutsideOfPackage("..prompt..")
           .should()
           .dependOnClassesThat()
           .resideInAPackage("..prompt..")
           .allowEmptyShould(true)
           .because(
-              "BE #72 S3-02: PromptShield 는 Service 레이어에서만 호출. Controller 직접 접근 시"
-                  + " 프롬프트 조립 로직이 HTTP 레이어에 노출됨.");
+              "BE #72 S3-02 (CR review fix): PromptShield 는 Service 레이어에서만 호출. Service 외 패키지"
+                  + "(Controller/Repository/Config 등)가 prompt 패키지에 의존 시 프롬프트 조립 로직이 부적절한 레이어에 노출. "
+                  + "prompt 패키지 내부 자기 의존은 허용.");
 
   /**
    * prompt 패키지 클래스는 @Service 가 아닌 @Component — serviceNaming 룰 적용 면제 박제. 이 룰 자체는 검증 룰이 아니라 의도 박제용 —

@@ -2,6 +2,10 @@ package com.truthscope.web.prompt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchRule;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,10 +36,15 @@ class PromptShieldRegressionSimTest {
   void variantD_arch_rule_exists() throws Exception {
     Class<?> archTestClass = Class.forName("com.truthscope.web.architecture.ArchitectureTest");
     boolean hasRule =
-        java.util.Arrays.stream(archTestClass.getDeclaredFields())
-            .anyMatch(f -> f.getName().equals("promptComponentAccessRule"));
+        Arrays.stream(archTestClass.getDeclaredFields())
+            .anyMatch(
+                f ->
+                    f.getName().equals("promptComponentAccessRule")
+                        && f.isAnnotationPresent(ArchTest.class)
+                        && ArchRule.class.isAssignableFrom(f.getType())
+                        && Modifier.isStatic(f.getModifiers()));
     assertThat(hasRule)
-        .as("promptComponentAccessRule ArchTest 필드가 ArchitectureTest 에 존재해야 함")
+        .as("promptComponentAccessRule 필드가 @ArchTest + ArchRule 타입 + static 으로 존재해야 함")
         .isTrue();
   }
 }
