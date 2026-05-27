@@ -1,6 +1,7 @@
 package com.truthscope.web.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
@@ -158,4 +159,33 @@ class ArchitectureTest {
           .allowEmptyShould(true)
           .because(
               "CONVENTIONS: 요청 DTO는 record 타입 (Java 17+) — immutable + 자동 equals/hashCode/toString.");
+
+  // ── BYOK userApiKey log redaction (ADR-004 §f, BE #90 트랙 4) ──
+
+  @ArchTest
+  static final ArchRule claimAnalysisServiceMustUseKeyFingerprinter =
+      classes()
+          .that()
+          .haveSimpleName("ClaimAnalysisService")
+          .should()
+          .dependOnClassesThat()
+          .haveFullyQualifiedName("com.truthscope.web.audit.KeyFingerprinter")
+          .allowEmptyShould(true)
+          .because(
+              "ADR-004 §f BYOK audit fingerprint 강제 — ClaimAnalysisService는 userApiKey 원본 대신 KeyFingerprinter.fingerprint() 결과만 audit에 박제. 의존 부재 시 원본 키 누출 path 발생.");
+
+  @ArchTest
+  static final ArchRule byokClassesShouldNotHaveSlf4jLoggerField =
+      fields()
+          .that()
+          .areDeclaredInClassesThat()
+          .haveSimpleName("ClaimAnalysisService")
+          .or()
+          .areDeclaredInClassesThat()
+          .haveSimpleName("GeminiClient")
+          .should()
+          .notHaveRawType("org.slf4j.Logger")
+          .allowEmptyShould(true)
+          .because(
+              "ADR-004 §f userApiKey log redaction — BYOK 처리 클래스(ClaimAnalysisService + GeminiClient)는 SLF4J Logger field 금지. Logger field 부재로 userApiKey 원본 log 박제 path 정적 차단. logging 필요 시 AOP @Around 분리 또는 KeyFingerprinter 결과만 박제.");
 }
