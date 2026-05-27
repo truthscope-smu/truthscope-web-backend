@@ -2,6 +2,7 @@ package com.truthscope.web.config;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -24,11 +25,13 @@ public class RestClientConfig {
   /**
    * Gemini API 전용 RestClient.
    *
-   * <p>baseUrl = {@code https://generativelanguage.googleapis.com}, connectTimeout 5s, readTimeout
-   * 15s.
+   * <p>baseUrl 기본값 {@code https://generativelanguage.googleapis.com}. WireMock cassette 통합 테스트에서
+   * {@code truthscope.gemini.base-url} property로 override.
    */
   @Bean
-  public RestClient geminiRestClient() {
+  public RestClient geminiRestClient(
+      @Value("${truthscope.gemini.base-url:https://generativelanguage.googleapis.com}")
+          String baseUrl) {
     HttpClient httpClient =
         HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -36,10 +39,7 @@ public class RestClientConfig {
             .build();
     JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
     factory.setReadTimeout(Duration.ofSeconds(15));
-    return RestClient.builder()
-        .baseUrl("https://generativelanguage.googleapis.com")
-        .requestFactory(factory)
-        .build();
+    return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
   }
 
   /**
