@@ -95,7 +95,7 @@ class ClaimAnalysisServiceTest {
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).claimStatusCandidate()).isEqualTo(ClaimStatusCandidate.SCORABLE);
-    verify(apiUsageLogService, times(1)).record(anyString(), anyInt());
+    verify(apiUsageLogService, times(1)).record(anyString(), anyInt(), anyString(), any());
   }
 
   @Test
@@ -184,7 +184,7 @@ class ClaimAnalysisServiceTest {
 
     service.analyze(SAMPLE_ARTICLE);
 
-    verify(apiUsageLogService, times(1)).record("GEMINI", 0);
+    verify(apiUsageLogService, times(1)).record("GEMINI", 0, "SERVER_POOL", null);
   }
 
   @Test
