@@ -28,6 +28,8 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:postgresql'
 	testImplementation 'org.testcontainers:junit-jupiter'
+	// BE #74 (S3-05) — WireMock for BYOK integration test (Gemini API cassette replay)
+	testImplementation 'org.wiremock:wiremock-standalone:3.10.0'
 }
 
 // throwaway 연구 코드(spike)는 워크스페이스 레벨 `truthscope-web/spike/` 독립 Java 프로젝트로 분리됨 (2026-05-04).

@@ -44,7 +44,7 @@ class NewsControllerTest {
             .status("EXTRACTING")
             .build();
 
-    given(analysisService.analyze(any(AnalysisRequest.class))).willReturn(response);
+    given(analysisService.analyze(any(AnalysisRequest.class), any())).willReturn(response);
 
     mockMvc
         .perform(
