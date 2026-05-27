@@ -61,6 +61,7 @@ resilience4j:
 truthscope:
   gemini:
     api-key: ${GEMINI_API_KEY:}
+    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
     prompt-version: "v1.0.0"
     schema-version: "v1.0.0"
   cascade:
