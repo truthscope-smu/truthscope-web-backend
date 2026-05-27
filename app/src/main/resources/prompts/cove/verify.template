@@ -1,0 +1,22 @@
+초기 판단과 검증 결과를 비교하여 최종 팩트체크 판정을 내리세요.
+
+주장: ${CLAIM_TEXT}
+초기 판단: ${INITIAL_JUDGMENT}
+
+검증 결과:
+${QA_RESULTS}
+
+판정 기준:
+- 검증 결과가 초기 판단을 지지하면: 초기 판단 유지
+- 검증 결과가 초기 판단과 불일치하면: 검증 결과 기준으로 수정
+- 검증 결과가 불충분하면: INSUFFICIENT_CANDIDATE 부여
+
+최종 출력 형식 (JSON):
+{
+  "final_judgment": "LIKELY_TRUE | LIKELY_FALSE | UNCERTAIN | INSUFFICIENT_INFO",
+  "confidence": "HIGH | MEDIUM | LOW",
+  "consistency_note": "초기 판단과 최종 판단이 일치/불일치한 이유 1문장",
+  "claim_status_candidate": "SCORABLE | INSUFFICIENT_CANDIDATE | TIME_SENSITIVE_CANDIDATE | OUT_OF_SCOPE_CANDIDATE"
+}
+
+주의: AI 분석이며 기관 검증이 아닙니다. 참고 용도로만 활용하세요.
