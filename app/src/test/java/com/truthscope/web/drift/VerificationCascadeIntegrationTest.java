@@ -1,6 +1,7 @@
 package com.truthscope.web.drift;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -166,7 +167,7 @@ class VerificationCascadeIntegrationTest {
     ClaimDraft fixtureDraft =
         new ClaimDraft(
             claimId, testClaimText, null, false, null, ClaimStatusCandidate.SCORABLE, null);
-    when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(fixtureDraft));
+    when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of(fixtureDraft));
 
     // When
     var response =
@@ -241,7 +242,7 @@ class VerificationCascadeIntegrationTest {
             null,
             ClaimStatusCandidate.SCORABLE,
             null);
-    when(claimAnalysisPort.analyze(anyString())).thenReturn(List.of(fixtureDraft));
+    when(claimAnalysisPort.analyze(anyString(), any())).thenReturn(List.of(fixtureDraft));
 
     // When: analyze 실행 — HybridCascadeService 가 실제 어댑터 없이 빈 snapshots 반환 예상
     // (외부 API 키 없음 + test-key 환경 → 어댑터 호출 실패 or empty 반환 → Tier 3 경로)
