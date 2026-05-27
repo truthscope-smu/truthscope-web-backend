@@ -61,8 +61,7 @@ public class GeminiClient {
    */
   @CircuitBreaker(name = "gemini", fallbackMethod = "fallbackStructured")
   public GeminiResponse callStructured(GeminiRequest req, @Nullable String overrideApiKey) {
-    String effectiveKey =
-        (overrideApiKey != null && !overrideApiKey.isBlank()) ? overrideApiKey : this.apiKey;
+    String effectiveKey = resolveEffectiveKey(overrideApiKey);
     GeminiGenerateContentResponse wrapper =
         restClient
             .post()
@@ -116,8 +115,7 @@ public class GeminiClient {
     }
 
     // 1차 5xx/429/timeout — 2차 FALLBACK_MODEL 재시도. effectiveKey 사용 (this.apiKey 하드코딩 금지)
-    String effectiveKey =
-        (overrideApiKey != null && !overrideApiKey.isBlank()) ? overrideApiKey : this.apiKey;
+    String effectiveKey = resolveEffectiveKey(overrideApiKey);
     try {
       GeminiGenerateContentResponse fallbackWrapper =
           restClient
@@ -132,6 +130,16 @@ public class GeminiClient {
     } catch (RuntimeException | JsonProcessingException ex) {
       return GeminiResponse.insufficient(DecisionSource.HEURISTIC_FALLBACK);
     }
+  }
+
+  /**
+   * BYOK overrideApiKey가 있으면 사용, 없으면 서버 기본 키 (CodeRabbit refactor — 중복 계산 헬퍼).
+   *
+   * @param overrideApiKey BYOK 사용자 키 (null/blank → 서버 기본)
+   * @return 실제 사용할 키
+   */
+  private String resolveEffectiveKey(@Nullable String overrideApiKey) {
+    return (overrideApiKey != null && !overrideApiKey.isBlank()) ? overrideApiKey : this.apiKey;
   }
 
   /**
