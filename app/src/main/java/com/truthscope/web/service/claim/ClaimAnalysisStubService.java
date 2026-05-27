@@ -3,6 +3,7 @@ package com.truthscope.web.service.claim;
 import com.truthscope.web.scoring.ClaimAnalysisPort;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimStatusCandidate;
+import jakarta.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -49,7 +50,8 @@ public class ClaimAnalysisStubService implements ClaimAnalysisPort {
 
   @Override
   @Transactional(readOnly = true)
-  public List<ClaimDraft> analyze(String articleBody) {
+  public List<ClaimDraft> analyze(String articleBody, @Nullable String userApiKey) {
+    // userApiKey 무시 — stub은 fixture 반환
     if (articleBody == null || articleBody.isBlank()) {
       return List.of();
     }

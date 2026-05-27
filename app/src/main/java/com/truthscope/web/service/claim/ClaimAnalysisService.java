@@ -1,5 +1,6 @@
 package com.truthscope.web.service.claim;
 
+import com.truthscope.web.audit.KeyFingerprinter;
 import com.truthscope.web.claim.validation.ClaimSchemaValidator;
 import com.truthscope.web.claim.validation.HeuristicValidator;
 import com.truthscope.web.claim.validation.Tier3ReasonValidator;
@@ -11,6 +12,7 @@ import com.truthscope.web.scoring.ClaimAnalysisPort;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimStatusCandidate;
 import com.truthscope.web.service.audit.ApiUsageLogService;
+import jakarta.annotation.Nullable;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -45,20 +47,31 @@ public class ClaimAnalysisService implements ClaimAnalysisPort {
   private final ApiUsageLogService apiUsageLogService;
 
   @Override
-  public List<ClaimDraft> analyze(String articleBody) {
+  public List<ClaimDraft> analyze(String articleBody, @Nullable String userApiKey) {
     if (articleBody == null || articleBody.isBlank()) {
       return List.of();
     }
-    // 1. PromptShield XML 격리 더하기 mini-CoVe template
     String prompt = promptShield.assemble(articleBody);
-    // 2. GeminiClient.callStructured (Resilience4j CircuitBreaker 자동 적용 더하기 2단계 파싱 더하기 fallback 분기)
     GeminiRequest request = buildRequest(prompt);
-    GeminiResponse response = geminiClient.callStructured(request, null);
-    // rev.5 amend I-01 (review): v1.x 단순 카운터 단계로 성공/실패 미구분. v2 트랙에서 GeminiResponse.decisionSource
-    // 기반 분기 의무 (GEMINI / CIRCUIT_BREAKER / HEURISTIC_FALLBACK 별 카운트).
-    apiUsageLogService.record("GEMINI", 0);
-    // 3. Schema Validator 더하기 4. Tier3ReasonValidator 적용 — claimStatusCandidate 갱신 후 Wave 2 cascade
-    // 입력
+
+    GeminiResponse response;
+    if (userApiKey != null && !userApiKey.isBlank()) {
+      response = geminiClient.callStructured(request, userApiKey);
+      // BE #74: BYOK 인증 실패 시 서버 기본 키로 1회 재시도. ADR-004 §f "모든 Gemini 호출 기록" 정합 — audit 2 row.
+      // CB 개입(CIRCUIT_BREAKER)은 BYOK 실패로 분류하지 않음 — CB는 backend health 신호, 키 유효성과 무관.
+      // 정상 SAFETY/empty/parse failure도 BYOK 실패가 아니라 정상 응답의 한 case.
+      if (response.authFailure()) {
+        String fingerprint = KeyFingerprinter.fingerprint(userApiKey);
+        apiUsageLogService.record("GEMINI", 0, "BYOK_FAILED", fingerprint);
+        response = geminiClient.callStructured(request, null);
+        apiUsageLogService.record("GEMINI", 0, "SERVER_POOL_FALLBACK", null);
+      } else {
+        apiUsageLogService.record("GEMINI", 0, "BYOK", KeyFingerprinter.fingerprint(userApiKey));
+      }
+    } else {
+      response = geminiClient.callStructured(request, null);
+      apiUsageLogService.record("GEMINI", 0, "SERVER_POOL", null);
+    }
     return response.claims().stream().map(this::applyValidators).toList();
   }
 
