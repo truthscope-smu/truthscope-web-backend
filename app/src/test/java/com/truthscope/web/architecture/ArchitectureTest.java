@@ -192,6 +192,47 @@ public class ArchitectureTest {
           .because(
               "ADR-004 §f userApiKey log redaction — BYOK 처리 클래스(ClaimAnalysisService + GeminiClient)는 SLF4J Logger field 금지. Logger field 부재로 userApiKey 원본 log 박제 path 정적 차단. logging 필요 시 AOP @Around 분리 또는 KeyFingerprinter 결과만 박제.");
 
+  // ── PromptShield 접근 제한 (BE #72 S3-02) ──
+
+  /**
+   * PromptShield 는 Service 레이어에서만 접근 가능. Service 외 모든 패키지(Controller/Repository/Config 등)가 prompt
+   * 패키지에 의존하면 프롬프트 조립 로직이 부적절한 레이어에 노출되어 레이어 위반. prompt 패키지 내부 자기 의존은 허용.
+   *
+   * <p>CodeRabbit 리뷰 반영 (Service 외 패키지 전체 차단 확대) — 본래 Controller 만 차단했으나 Repository/Config 등이
+   * prompt 의존하는 경로도 차단해야 정합.
+   */
+  @ArchTest
+  static final ArchRule promptComponentAccessRule =
+      noClasses()
+          .that()
+          .resideOutsideOfPackage("..service..")
+          .and()
+          .resideOutsideOfPackage("..prompt..")
+          .should()
+          .dependOnClassesThat()
+          .resideInAPackage("..prompt..")
+          .allowEmptyShould(true)
+          .because(
+              "BE #72 S3-02 (CR review fix): PromptShield 는 Service 레이어에서만 호출. Service 외 패키지"
+                  + "(Controller/Repository/Config 등)가 prompt 패키지에 의존 시 프롬프트 조립 로직이 부적절한 레이어에 노출. "
+                  + "prompt 패키지 내부 자기 의존은 허용.");
+
+  /**
+   * prompt 패키지 클래스는 @Service 가 아닌 @Component — serviceNaming 룰 적용 면제 박제. 이 룰 자체는 검증 룰이 아니라 의도 박제용 —
+   * allowEmptyShould(true) 유지.
+   */
+  @ArchTest
+  static final ArchRule promptPackageNamingExempt =
+      classes()
+          .that()
+          .resideInAPackage("..prompt..")
+          .should()
+          .notBeAnnotatedWith(org.springframework.stereotype.Service.class)
+          .allowEmptyShould(true)
+          .because(
+              "BE #72: prompt 패키지 클래스는 @Component (NOT @Service) — serviceNaming 룰"
+                  + " 적용 대상에서 자동 제외됨을 코드 레벨에서 명문화.");
+
   // ── Wikipedia Tier 1 사용 금지 + factcheck_cache 저장 금지 (BE #73, domain-logic.md) ──
   // H3 amend: FactcheckCache.java (core/entity 라인 17) + FactcheckCacheRepository.java
   // (app/repository 라인 10)
