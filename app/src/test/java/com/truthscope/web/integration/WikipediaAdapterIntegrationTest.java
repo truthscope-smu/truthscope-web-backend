@@ -241,9 +241,13 @@ class WikipediaAdapterIntegrationTest {
   }
 
   // [Amend 1] H4-R4 S5 실 fail 검증 — pass-only 안티패턴 수정.
-  // ClassFileImporter로 의도적 위반 픽스처(WikipediaViolatorFixture)를 직접 임포트하여
+  // ClassFileImporter로 의도적 위반 픽스처(WikipediaSignalViolatorFixture)를 직접 임포트하여
   // wikipediaSignalDependentsMustNotAccessFactcheckCacheRepository 룰을 check() 호출.
   // 룰이 실제로 위반을 감지하여 AssertionError를 던지는지 assertThatThrownBy로 검증.
+  // [Fix] 픽스처 클래스명에 "WikipediaSignal" 포함 필수 — ArchUnit 룰이
+  // haveSimpleNameContaining("WikipediaSignal")
+  //   필터를 사용하므로, 픽스처 클래스명이 이를 만족해야 실제 위반 감지 가능. WikipediaViolatorFixture →
+  //   WikipediaSignalViolatorFixture 리네임으로 룰 적용 범위에 포함.
   @Test
   @DisplayName(
       "S5 WikipediaSignalConsumer port 외 경로에서 FactcheckCacheRepository 접근 시 ArchUnit FAIL 검증 (H3 codex Round 3 amend + Amend 1 실 fail 검증)")
@@ -252,7 +256,7 @@ class WikipediaAdapterIntegrationTest {
     com.tngtech.archunit.core.importer.ClassFileImporter importer =
         new com.tngtech.archunit.core.importer.ClassFileImporter();
     com.tngtech.archunit.core.domain.JavaClasses violationClasses =
-        importer.importClasses(WikipediaViolatorFixture.class);
+        importer.importClasses(WikipediaSignalViolatorFixture.class);
 
     // ArchUnit 룰이 실제 위반을 감지하여 AssertionError를 던지는지 검증
     // 룰이 동작하지 않으면 예외가 발생하지 않아 이 테스트 자체가 fail → pass-only 안티패턴 차단
@@ -273,8 +277,11 @@ class WikipediaAdapterIntegrationTest {
    * <p>WikipediaMetaSignal 의존 + FactcheckCacheRepository 직접 접근 의도적 위반. WikipediaSignalConsumer 미구현
    * + FactcheckCacheRepository 접근 → 4번째 ArchUnit 룰 위반 확인용. 실 서비스 코드에 포함되지 않는다 (테스트 파일 내 inner
    * static class로만 존재).
+   *
+   * <p>[Fix] 클래스명에 "WikipediaSignal" 포함 — ArchUnit 룰 haveSimpleNameContaining("WikipediaSignal")
+   * 필터가 이 픽스처를 대상으로 삼도록 보장. 이전 이름 WikipediaViolatorFixture는 필터 미통과로 S5 PASS-ONLY 안티패턴 발생.
    */
-  static class WikipediaViolatorFixture {
+  static class WikipediaSignalViolatorFixture {
     com.truthscope.web.adapter.datasource.WikipediaMetaSignal signal;
     com.truthscope.web.repository.FactcheckCacheRepository repo;
 

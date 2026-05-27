@@ -44,15 +44,13 @@ public class WikipediaRevisionChecker {
   /**
    * H4 codex Round 2 amend: Clock 주입 생성자. @RequiredArgsConstructor 대신 명시 생성자. GeminiClient.java 라인
    * 46 패턴 정합 — Qualifier 필요 시 명시 생성자 의무.
+   *
+   * <p>편의 생성자(RestClient.Builder 단일 파라미터) 제거 — Spring DI가 생성자 2개 중 어느 것을 호출할지 모호하여
+   * NoSuchMethodException 발생. 단위 테스트에서는 Clock.systemUTC()를 명시 주입.
    */
   public WikipediaRevisionChecker(RestClient.Builder restClientBuilder, java.time.Clock clock) {
     this.restClientBuilder = restClientBuilder;
     this.clock = clock;
-  }
-
-  /** 단위 테스트용 편의 생성자 — Clock.systemUTC() 기본값. */
-  WikipediaRevisionChecker(RestClient.Builder restClientBuilder) {
-    this(restClientBuilder, java.time.Clock.systemUTC());
   }
 
   /**

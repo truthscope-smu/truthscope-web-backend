@@ -18,7 +18,8 @@ class WikipediaRevisionCheckerTest {
   @DisplayName("null title → UNKNOWN 반환")
   void nullTitle_returnsUnknown() {
     WikipediaRevisionChecker checker =
-        new WikipediaRevisionChecker(org.springframework.web.client.RestClient.builder());
+        new WikipediaRevisionChecker(
+            org.springframework.web.client.RestClient.builder(), java.time.Clock.systemUTC());
     assertThat(checker.check(null, "ko")).isEqualTo(VandalismStatus.UNKNOWN);
   }
 
@@ -26,7 +27,8 @@ class WikipediaRevisionCheckerTest {
   @DisplayName("blank title → UNKNOWN 반환")
   void blankTitle_returnsUnknown() {
     WikipediaRevisionChecker checker =
-        new WikipediaRevisionChecker(org.springframework.web.client.RestClient.builder());
+        new WikipediaRevisionChecker(
+            org.springframework.web.client.RestClient.builder(), java.time.Clock.systemUTC());
     assertThat(checker.check("  ", "ko")).isEqualTo(VandalismStatus.UNKNOWN);
   }
 
@@ -34,11 +36,12 @@ class WikipediaRevisionCheckerTest {
   @Test
   @DisplayName("malformed JSON → countRecentRevisions는 -1 반환 → UNKNOWN (fail-closed 가드)")
   void malformedJson_returnsUnknown() {
-    WikipediaRevisionChecker checker =
-        new WikipediaRevisionChecker(org.springframework.web.client.RestClient.builder());
     java.time.Clock fixedClock =
         java.time.Clock.fixed(
             java.time.Instant.parse("2026-05-27T11:00:00Z"), java.time.ZoneOffset.UTC);
+    WikipediaRevisionChecker checker =
+        new WikipediaRevisionChecker(
+            org.springframework.web.client.RestClient.builder(), fixedClock);
     int result = checker.countRecentRevisions("NOT_VALID_JSON{{{", fixedClock);
     assertThat(result).isEqualTo(-1);
   }
@@ -46,11 +49,12 @@ class WikipediaRevisionCheckerTest {
   @Test
   @DisplayName("empty body → countRecentRevisions는 -1 반환 → UNKNOWN (fail-closed 가드)")
   void emptyBody_returnsMinusOne() {
-    WikipediaRevisionChecker checker =
-        new WikipediaRevisionChecker(org.springframework.web.client.RestClient.builder());
     java.time.Clock fixedClock =
         java.time.Clock.fixed(
             java.time.Instant.parse("2026-05-27T11:00:00Z"), java.time.ZoneOffset.UTC);
+    WikipediaRevisionChecker checker =
+        new WikipediaRevisionChecker(
+            org.springframework.web.client.RestClient.builder(), fixedClock);
     int result = checker.countRecentRevisions("", fixedClock);
     assertThat(result).isEqualTo(-1);
   }
@@ -89,7 +93,8 @@ class WikipediaRevisionCheckerTest {
       // WikipediaRevisionChecker는 @Value로 koBaseUrl/enBaseUrl 주입 — 단위 테스트에서는
       // ReflectionTestUtils로 baseUrl 필드를 직접 주입하거나, 테스트용 생성자/setter 활용
       WikipediaRevisionChecker checker =
-          new WikipediaRevisionChecker(org.springframework.web.client.RestClient.builder());
+          new WikipediaRevisionChecker(
+              org.springframework.web.client.RestClient.builder(), java.time.Clock.systemUTC());
       // ReflectionTestUtils로 koBaseUrl 필드를 WireMock URL로 override
       org.springframework.test.util.ReflectionTestUtils.setField(
           checker, "koBaseUrl", wireMockBaseUrl);
