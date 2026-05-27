@@ -61,7 +61,9 @@ resilience4j:
 truthscope:
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+    # base-url default는 RestClientConfig의 @Value에서 정의 (BE #92 wiremock-spring-boot customizer가
+    # PropertySource로 override할 때 application.yml의 nested placeholder가 우선 evaluate되는 케이스 회피).
+    # production에서 환경변수 override 필요 시 GEMINI_BASE_URL 또는 truthscope.gemini.base-url 직접 set.
     prompt-version: "v1.0.0"
     schema-version: "v1.0.0"
   cascade:
