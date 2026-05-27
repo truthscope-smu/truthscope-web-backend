@@ -53,7 +53,7 @@ public class ClaimAnalysisService implements ClaimAnalysisPort {
     String prompt = promptShield.assemble(articleBody);
     // 2. GeminiClient.callStructured (Resilience4j CircuitBreaker 자동 적용 더하기 2단계 파싱 더하기 fallback 분기)
     GeminiRequest request = buildRequest(prompt);
-    GeminiResponse response = geminiClient.callStructured(request);
+    GeminiResponse response = geminiClient.callStructured(request, null);
     // rev.5 amend I-01 (review): v1.x 단순 카운터 단계로 성공/실패 미구분. v2 트랙에서 GeminiResponse.decisionSource
     // 기반 분기 의무 (GEMINI / CIRCUIT_BREAKER / HEURISTIC_FALLBACK 별 카운트).
     apiUsageLogService.record("GEMINI", 0);

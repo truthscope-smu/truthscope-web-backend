@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.truthscope.web.entity.enums.DecisionSource;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import jakarta.annotation.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -15,7 +16,9 @@ import org.springframework.web.client.RestClient;
 /**
  * Gemini API 클라이언트 — production 프로파일 전용.
  *
- * <p>PLAN §4-1 rev.5 amend 정합:
+ * <p>BE #74 amend: BYOK overrideApiKey 인자 추가. null/blank → 서버 기본 키 사용, 명시 → 사용자 키 1회성 사용.
+ * fallbackStructured 내부 2차 FALLBACK_MODEL 호출도 effectiveKey 사용 (this.apiKey 하드코딩 금지). BYOK 401/403 →
+ * {@link GeminiResponse#authFailed()} 신호 (서버 키 fallback 트리거).
  *
  * <ul>
  *   <li>{@link #PRIMARY_MODEL} = {@code gemini-3.1-flash-lite} (domain-logic.md lock, 2026-05-27 GA
@@ -52,18 +55,19 @@ public class GeminiClient {
   /**
    * Gemini API 에 structured output 요청을 전송하고 {@link GeminiResponse} 를 반환.
    *
-   * <p>PRIMARY 모델로 시도, CircuitBreaker 개입 또는 오류 시 {@link #fallbackStructured} 로 위임.
-   *
    * @param req Gemini 요청 DTO
+   * @param overrideApiKey BYOK 사용자 키 (null/blank → 서버 기본 키 사용)
    * @return 정규화된 응답
    */
   @CircuitBreaker(name = "gemini", fallbackMethod = "fallbackStructured")
-  public GeminiResponse callStructured(GeminiRequest req) {
+  public GeminiResponse callStructured(GeminiRequest req, @Nullable String overrideApiKey) {
+    String effectiveKey =
+        (overrideApiKey != null && !overrideApiKey.isBlank()) ? overrideApiKey : this.apiKey;
     GeminiGenerateContentResponse wrapper =
         restClient
             .post()
             .uri("/v1beta/models/{model}:generateContent", PRIMARY_MODEL)
-            .header("x-goog-api-key", apiKey)
+            .header("x-goog-api-key", effectiveKey)
             .body(req)
             .retrieve()
             .body(GeminiGenerateContentResponse.class);
@@ -76,39 +80,50 @@ public class GeminiClient {
   }
 
   /**
-   * CircuitBreaker fallback — status 분기 처리 (rev.5 amend Round 4 CX4-2).
+   * CircuitBreaker fallback — status 분기 처리.
    *
    * <ul>
-   *   <li>{@link CallNotPermittedException} → CB open 상태 → {@link DecisionSource#CIRCUIT_BREAKER}
-   *   <li>{@link HttpClientErrorException} 4xx (400/401/403) → Gemini 측 거부 → {@link
-   *       DecisionSource#GEMINI} (운영 의미 보존)
-   *   <li>1차 5xx/429/timeout → 2차 {@link #FALLBACK_MODEL} 재시도 → 성공 시 {@link DecisionSource#GEMINI}
+   *   <li>{@link CallNotPermittedException} → CB open → {@link DecisionSource#CIRCUIT_BREAKER}
+   *   <li>BYOK 호출 시 401/403 → {@link GeminiResponse#authFailed()} (서버 키 fallback 트리거)
+   *   <li>서버 기본 키 4xx 또는 400 (요청 body 오류, BYOK 무관) → {@link DecisionSource#GEMINI} insufficient
+   *   <li>1차 5xx/429/timeout → 2차 {@link #FALLBACK_MODEL} 재시도 + effectiveKey 사용
    *   <li>2차 모델도 실패 → {@link DecisionSource#HEURISTIC_FALLBACK}
    * </ul>
    *
    * @param req 원본 요청
+   * @param overrideApiKey BYOK 사용자 키 (null → 서버 기본)
    * @param throwable callStructured 에서 전파된 예외
    * @return 정규화된 응답
    */
-  public GeminiResponse fallbackStructured(GeminiRequest req, Throwable throwable) {
+  public GeminiResponse fallbackStructured(
+      GeminiRequest req, @Nullable String overrideApiKey, Throwable throwable) {
     if (throwable instanceof CallNotPermittedException) {
       return GeminiResponse.insufficient(DecisionSource.CIRCUIT_BREAKER);
     }
 
     if (throwable instanceof HttpClientErrorException httpEx) {
       int statusCode = httpEx.getStatusCode().value();
+      // BE #74 amend: BYOK 키 사용 중 401/403 → authFailed 신호 (서버 키 fallback 트리거)
+      if ((statusCode == 401 || statusCode == 403)
+          && overrideApiKey != null
+          && !overrideApiKey.isBlank()) {
+        return GeminiResponse.authFailed();
+      }
+      // 400 (요청 body 오류, BYOK 무관) + 서버 키 401/403 → 일반 GEMINI insufficient
       if (statusCode == 400 || statusCode == 401 || statusCode == 403) {
         return GeminiResponse.insufficient(DecisionSource.GEMINI);
       }
     }
 
-    // 1차 5xx / 429 / timeout — 2차 FALLBACK_MODEL 재시도
+    // 1차 5xx/429/timeout — 2차 FALLBACK_MODEL 재시도. effectiveKey 사용 (this.apiKey 하드코딩 금지)
+    String effectiveKey =
+        (overrideApiKey != null && !overrideApiKey.isBlank()) ? overrideApiKey : this.apiKey;
     try {
       GeminiGenerateContentResponse fallbackWrapper =
           restClient
               .post()
               .uri("/v1beta/models/{model}:generateContent", FALLBACK_MODEL)
-              .header("x-goog-api-key", apiKey)
+              .header("x-goog-api-key", effectiveKey)
               .body(req)
               .retrieve()
               .body(GeminiGenerateContentResponse.class);
@@ -122,9 +137,6 @@ public class GeminiClient {
   /**
    * wrapper 응답을 2단계 파싱하여 {@link GeminiResponse} 반환.
    *
-   * <p>empty candidates, SAFETY blockReason, parts[0].text 파싱 실패 등 비정상 응답은 {@link
-   * GeminiResponse#insufficient} 로 처리.
-   *
    * @param wrapper Gemini API 응답 wrapper (nullable)
    * @return 정규화된 응답
    * @throws JsonProcessingException 2단계 파싱 실패 시 (호출부에서 catch)
@@ -135,19 +147,16 @@ public class GeminiClient {
       return GeminiResponse.insufficient(DecisionSource.GEMINI);
     }
 
-    // promptFeedback.blockReason 확인
     if (wrapper.promptFeedback() != null && wrapper.promptFeedback().blockReason() != null) {
       return GeminiResponse.insufficient(DecisionSource.GEMINI);
     }
 
-    // empty candidates 확인
     if (wrapper.candidates() == null || wrapper.candidates().isEmpty()) {
       return GeminiResponse.insufficient(DecisionSource.GEMINI);
     }
 
     GeminiGenerateContentResponse.Candidate candidate = wrapper.candidates().get(0);
 
-    // SAFETY finishReason 확인
     if ("SAFETY".equals(candidate.finishReason())) {
       return GeminiResponse.insufficient(DecisionSource.GEMINI);
     }
@@ -163,7 +172,6 @@ public class GeminiClient {
       return GeminiResponse.insufficient(DecisionSource.GEMINI);
     }
 
-    // 2단계 파싱: parts[0].text → ClaimAnalysisPayload
     ClaimAnalysisPayload payload = objectMapper.readValue(text, ClaimAnalysisPayload.class);
     return GeminiResponse.from(payload, wrapper);
   }
