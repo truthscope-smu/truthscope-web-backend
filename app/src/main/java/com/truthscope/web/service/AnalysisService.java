@@ -103,14 +103,7 @@ public class AnalysisService {
     CoverageSummary coverage = CoverageAggregator.aggregateCoverage(signals);
 
     transactionService.persistCascadeResults(
-        sessionId,
-        signals,
-        savedClaims,
-        totalScore,
-        articleLabel,
-        transparencySummary,
-        coverage,
-        results);
+        sessionId, savedClaims, totalScore, articleLabel, transparencySummary, coverage, results);
 
     return AnalysisResponse.builder()
         .sessionId(sessionId)

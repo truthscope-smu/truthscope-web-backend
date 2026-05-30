@@ -172,51 +172,40 @@ public class ArticleVerificationService {
       return SourceTransparencyAggregator.aggregateSourceTransparency(List.of());
     }
     List<ClaimVerificationSignal> signals =
-        sources.stream()
-            .map(
-                source -> {
-                  VerificationResult result = source.result();
-                  Claim claim = source.claim();
-
-                  if (result == null) {
-                    // 미검증 claim → NONE / INSUFFICIENT / score null
-                    return new ClaimVerificationSignal(
-                        claim.getId(),
-                        (short) 3,
-                        null,
-                        ClaimScoreStatus.INSUFFICIENT,
-                        SourceTransparency.NONE);
-                  }
-
-                  Short tier = result.getTier();
-                  if (tier == null) {
-                    tier = (short) 3;
-                  }
-
-                  SourceTransparency transparency =
-                      switch (tier.intValue()) {
-                        case 1 -> SourceTransparency.EXPLICIT;
-                        case 2 -> SourceTransparency.AMBIGUOUS;
-                        default -> SourceTransparency.NONE;
-                      };
-
-                  Short rawScore = result.getScore();
-                  // ClaimVerificationSignal 불변식: SCORABLE이면 score 0..100 non-null, 비판정이면 null
-                  if (rawScore != null) {
-                    return new ClaimVerificationSignal(
-                        claim.getId(),
-                        tier,
-                        rawScore.intValue(),
-                        ClaimScoreStatus.SCORABLE,
-                        transparency);
-                  } else {
-                    // score null → 비판정 (INSUFFICIENT) — tier3 또는 score 미산정
-                    return new ClaimVerificationSignal(
-                        claim.getId(), tier, null, ClaimScoreStatus.INSUFFICIENT, transparency);
-                  }
-                })
-            .toList();
+        sources.stream().map(this::toVerificationSignal).toList();
     return SourceTransparencyAggregator.aggregateSourceTransparency(signals);
+  }
+
+  /** 단일 ClaimItemSource를 ClaimVerificationSignal로 변환한다 (tier 재구성 + 불변식 준수). */
+  private ClaimVerificationSignal toVerificationSignal(ClaimItemSource source) {
+    VerificationResult result = source.result();
+    Claim claim = source.claim();
+
+    if (result == null) {
+      return new ClaimVerificationSignal(
+          claim.getId(), (short) 3, null, ClaimScoreStatus.INSUFFICIENT, SourceTransparency.NONE);
+    }
+
+    Short tier = result.getTier();
+    if (tier == null) {
+      tier = (short) 3;
+    }
+
+    SourceTransparency transparency =
+        switch (tier.intValue()) {
+          case 1 -> SourceTransparency.EXPLICIT;
+          case 2 -> SourceTransparency.AMBIGUOUS;
+          default -> SourceTransparency.NONE;
+        };
+
+    Short rawScore = result.getScore();
+    if (rawScore != null) {
+      return new ClaimVerificationSignal(
+          claim.getId(), tier, rawScore.intValue(), ClaimScoreStatus.SCORABLE, transparency);
+    } else {
+      return new ClaimVerificationSignal(
+          claim.getId(), tier, null, ClaimScoreStatus.INSUFFICIENT, transparency);
+    }
   }
 
   /**

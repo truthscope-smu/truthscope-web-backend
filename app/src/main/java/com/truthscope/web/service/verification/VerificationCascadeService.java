@@ -93,36 +93,52 @@ public class VerificationCascadeService {
     List<EvidenceSnapshot> validSnapshots =
         snapshots.stream().filter(s -> urlValidator.validate(s.url())).toList();
 
-    if (validSnapshots.size() >= cascadePolicy.sourceCountThreshold()) {
-      // PolicyEvidenceScorer 우선 시도
-      Optional<Integer> policyScore = policyScorer.calculate(draft, validSnapshots, cascadePolicy);
-      if (policyScore.isPresent()) {
-        return new ClaimCascadeResult(
-            new ClaimVerificationSignal(
-                draft.claimId(),
-                (short) 2,
-                policyScore.get(),
-                ClaimScoreStatus.SCORABLE,
-                SourceTransparency.AMBIGUOUS),
-            validSnapshots);
-      }
-
-      // StanceRatioScorer fallback
-      Optional<Integer> stanceScore = stanceScorer.calculate(draft, validSnapshots, cascadePolicy);
-      if (stanceScore.isPresent()) {
-        return new ClaimCascadeResult(
-            new ClaimVerificationSignal(
-                draft.claimId(),
-                (short) 2,
-                stanceScore.get(),
-                ClaimScoreStatus.SCORABLE,
-                SourceTransparency.AMBIGUOUS),
-            validSnapshots);
-      }
+    Optional<ClaimCascadeResult> tier2Result = tryTier2Score(draft, validSnapshots);
+    if (tier2Result.isPresent()) {
+      return tier2Result.get();
     }
 
     // Tier 3: Tier3ReasonValidator -> 비판정 신호, evidence 없음
     return new ClaimCascadeResult(buildTier3Signal(draft), List.of());
+  }
+
+  /**
+   * Tier 2 점수 산출을 시도한다. PolicyEvidenceScorer 우선, StanceRatioScorer fallback. 출처 수 임계값 미충족 또는 두
+   * scorer 모두 실패 시 empty 반환.
+   */
+  private Optional<ClaimCascadeResult> tryTier2Score(
+      ClaimDraft draft, List<EvidenceSnapshot> validSnapshots) {
+    if (validSnapshots.size() < cascadePolicy.sourceCountThreshold()) {
+      return Optional.empty();
+    }
+
+    Optional<Integer> policyScore = policyScorer.calculate(draft, validSnapshots, cascadePolicy);
+    if (policyScore.isPresent()) {
+      return Optional.of(
+          new ClaimCascadeResult(
+              new ClaimVerificationSignal(
+                  draft.claimId(),
+                  (short) 2,
+                  policyScore.get(),
+                  ClaimScoreStatus.SCORABLE,
+                  SourceTransparency.AMBIGUOUS),
+              validSnapshots));
+    }
+
+    Optional<Integer> stanceScore = stanceScorer.calculate(draft, validSnapshots, cascadePolicy);
+    if (stanceScore.isPresent()) {
+      return Optional.of(
+          new ClaimCascadeResult(
+              new ClaimVerificationSignal(
+                  draft.claimId(),
+                  (short) 2,
+                  stanceScore.get(),
+                  ClaimScoreStatus.SCORABLE,
+                  SourceTransparency.AMBIGUOUS),
+              validSnapshots));
+    }
+
+    return Optional.empty();
   }
 
   /**

@@ -75,47 +75,59 @@ public class FidelityClassifierService implements FidelityClassifierPort {
     String prompt = promptShield.assemble(claimText, candidatesBlock);
     GeminiRequest request = buildRequest(prompt);
 
-    // BYOK 분기 — ClaimAnalysisService:58-74 동일 패턴
     if (userApiKey != null && !userApiKey.isBlank()) {
-      try {
-        List<EvidenceSnapshot> result = callAndParse(request, userApiKey);
-        apiUsageLogService.record(AUDIT_TAG, 0, "BYOK", KeyFingerprinter.fingerprint(userApiKey));
-        return applyRelevanceFilter(result);
-      } catch (HttpClientErrorException httpEx) {
-        HttpStatusCode status = httpEx.getStatusCode();
-        if (status.value() == 401 || status.value() == 403) {
-          // BYOK 인증 실패 — 서버 기본 키로 재시도 (ADR-004 §f 정합)
-          String fingerprint = KeyFingerprinter.fingerprint(userApiKey);
-          apiUsageLogService.record(AUDIT_TAG, 0, "BYOK_FAILED", fingerprint);
-          try {
-            List<EvidenceSnapshot> fallback = callAndParse(request, null);
-            apiUsageLogService.record(AUDIT_TAG, 0, "SERVER_POOL_FALLBACK", null);
-            return applyRelevanceFilter(fallback);
-          } catch (Exception fallbackEx) {
-            log.warn(
-                "FidelityClassifier: 서버 기본 키 재시도 실패 — Tier 3 안전강하. cause={}",
-                fallbackEx.getMessage());
-            return List.of();
-          }
-        }
-        log.warn(
-            "FidelityClassifier: HTTP {} — Tier 3 안전강하. cause={}",
-            status.value(),
-            httpEx.getMessage());
-        return List.of();
-      } catch (Exception ex) {
-        log.warn("FidelityClassifier: BYOK 호출 실패 — Tier 3 안전강하. cause={}", ex.getMessage());
-        return List.of();
-      }
+      return classifyWithByok(request, userApiKey);
     } else {
-      try {
-        List<EvidenceSnapshot> result = callAndParse(request, null);
-        apiUsageLogService.record(AUDIT_TAG, 0, "SERVER_POOL", null);
-        return applyRelevanceFilter(result);
-      } catch (Exception ex) {
-        log.warn("FidelityClassifier: 서버 키 호출 실패 — Tier 3 안전강하. cause={}", ex.getMessage());
-        return List.of();
+      return classifyWithServerKey(request);
+    }
+  }
+
+  /** BYOK 분기 — 인증 실패 시 서버 기본 키로 재시도 (ADR-004 §f 정합). */
+  private List<EvidenceSnapshot> classifyWithByok(GeminiRequest request, String userApiKey) {
+    try {
+      List<EvidenceSnapshot> result = callAndParse(request, userApiKey);
+      apiUsageLogService.record(AUDIT_TAG, 0, "BYOK", KeyFingerprinter.fingerprint(userApiKey));
+      return applyRelevanceFilter(result);
+    } catch (HttpClientErrorException httpEx) {
+      HttpStatusCode status = httpEx.getStatusCode();
+      if (status.value() == 401 || status.value() == 403) {
+        return fallbackToServerKey(request, userApiKey);
       }
+      log.warn(
+          "FidelityClassifier: HTTP {} — Tier 3 안전강하. cause={}",
+          status.value(),
+          httpEx.getMessage());
+      return List.of();
+    } catch (Exception ex) {
+      log.warn("FidelityClassifier: BYOK 호출 실패 — Tier 3 안전강하. cause={}", ex.getMessage());
+      return List.of();
+    }
+  }
+
+  /** BYOK 인증 실패 후 서버 기본 키로 재시도. */
+  private List<EvidenceSnapshot> fallbackToServerKey(GeminiRequest request, String userApiKey) {
+    apiUsageLogService.record(
+        AUDIT_TAG, 0, "BYOK_FAILED", KeyFingerprinter.fingerprint(userApiKey));
+    try {
+      List<EvidenceSnapshot> fallback = callAndParse(request, null);
+      apiUsageLogService.record(AUDIT_TAG, 0, "SERVER_POOL_FALLBACK", null);
+      return applyRelevanceFilter(fallback);
+    } catch (Exception fallbackEx) {
+      log.warn(
+          "FidelityClassifier: 서버 기본 키 재시도 실패 — Tier 3 안전강하. cause={}", fallbackEx.getMessage());
+      return List.of();
+    }
+  }
+
+  /** 서버 기본 키 분기. */
+  private List<EvidenceSnapshot> classifyWithServerKey(GeminiRequest request) {
+    try {
+      List<EvidenceSnapshot> result = callAndParse(request, null);
+      apiUsageLogService.record(AUDIT_TAG, 0, "SERVER_POOL", null);
+      return applyRelevanceFilter(result);
+    } catch (Exception ex) {
+      log.warn("FidelityClassifier: 서버 키 호출 실패 — Tier 3 안전강하. cause={}", ex.getMessage());
+      return List.of();
     }
   }
 
@@ -144,7 +156,16 @@ public class FidelityClassifierService implements FidelityClassifierPort {
             .retrieve()
             .body(GeminiGenerateContentResponse.class);
 
-    // 2단계 파싱 — wrapper null/safety/candidates 검사
+    return parseGeminiResponse(wrapper);
+  }
+
+  /**
+   * GeminiGenerateContentResponse 를 파싱하여 EvidenceSnapshot 목록을 반환한다.
+   *
+   * <p>wrapper null/safety/candidates 검사 → parts[0].text 추출 → JSON 배열 역직렬화.
+   */
+  private List<EvidenceSnapshot> parseGeminiResponse(GeminiGenerateContentResponse wrapper)
+      throws Exception {
     if (wrapper == null) {
       return List.of();
     }
@@ -170,7 +191,6 @@ public class FidelityClassifierService implements FidelityClassifierPort {
       return List.of();
     }
 
-    // JSON 배열 직접 역직렬화 (FidelityPayload.items 래퍼 없이)
     List<FidelityItem> items;
     try {
       items = objectMapper.readValue(text.trim(), new TypeReference<List<FidelityItem>>() {});

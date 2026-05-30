@@ -2,9 +2,6 @@ package com.truthscope.web.adapter.datasource;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -22,19 +19,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * data.go.kr 정책뉴스(S3a) + 보도자료(S3a') 어댑터.
- *
- * <p>PLAN.md T1 결정 정합:
- *
- * <ul>
- *   <li>plain @Component — DataSourceAdapter 미구현 (codex#2: DatasourceClaim lossy 문제 해소).
- *   <li>@Transactional 없음 — 외부 HTTP는 트랜잭션 경계 밖 (RC-01 정합).
- *   <li>레포지토리 직접 접근 없음 — ArchitectureTest:303 adapter.datasource → repository 금지 준수.
- *   <li>RestClient.Builder unqualified 주입 — WikipediaAdapter 패턴 동일. per-request baseUrl().build().
- * </ul>
- *
- * <p>슬라이딩 윈도우: (endDate - startDate) > 3일 초과 시 <=3일 단위 분할 호출 후 url 기준 dedupe 머지. data-go-kr-api.md
- * §4 규칙 정합 (resultCode=98 THREE_DAYS_OVER_ERROR 방지).
+ * data.go.kr 정책뉴스(S3a) + 보도자료(S3a') 어댑터. plain @Component, @Transactional 없음(RC-01). 슬라이딩
+ * 윈도우(data-go-kr-api.md §4, resultCode=98 방지). DTO 클래스는 DataGoKrXmlResponse.java에 분리.
  */
 @Component
 @Slf4j
@@ -67,14 +53,7 @@ public class DataGoKrAdapter {
   private String serviceKey;
 
   /**
-   * 정책뉴스 + 보도자료 두 API를 모두 호출하고 머지한 결과를 반환한다.
-   *
-   * <p>날짜 범위가 3일(차이값 기준)을 초과하면 내부에서 <=3일 슬라이딩 윈도우로 분할 호출한다. url 기준 dedupe 적용. 외부 호출 실패/빈결과 시 빈 List
-   * 반환 — 예외를 던지지 않는다 (Tier 3 안전강하 정합).
-   *
-   * @param from 조회 시작일 (포함)
-   * @param to 조회 종료일 (포함)
-   * @return dedupe된 DataGoKrPolicyItem 리스트
+   * 정책뉴스 + 보도자료 API를 슬라이딩 윈도우(<=3일 단위)로 분할 호출해 url 기준 dedupe 머지 결과를 반환한다. 실패 시 빈 리스트 (Tier 3 안전강하).
    */
   public List<DataGoKrPolicyItem> fetchPolicyItems(LocalDate from, LocalDate to) {
     // url → item dedupe 맵 (LinkedHashMap으로 삽입 순서 유지)
@@ -107,25 +86,12 @@ public class DataGoKrAdapter {
     return new ArrayList<>(dedupe.values());
   }
 
-  /**
-   * 단일 윈도우(<=3일) + 단일 endpoint에 대해 GET 요청 후 파싱 결과를 반환한다.
-   *
-   * <p>패키지-프라이빗(default) — DataGoKrAdapterTest에서 직접 접근 가능.
-   */
+  /** 단일 윈도우(<=3일) + 단일 endpoint에 대해 GET 요청 후 파싱 결과를 반환한다. 패키지-프라이빗. */
   List<DataGoKrPolicyItem> fetchWindow(String endpoint, LocalDate start, LocalDate end) {
     try {
       String encodedKey = URLEncoder.encode(serviceKey, StandardCharsets.UTF_8);
       String startDateStr = start.format(DATE_FMT);
       String endDateStr = end.format(DATE_FMT);
-      String url =
-          endpoint
-              + "?serviceKey="
-              + encodedKey
-              + "&startDate="
-              + startDateStr
-              + "&endDate="
-              + endDateStr;
-
       RestClient client = restClientBuilder.baseUrl(endpoint).build();
       String xml =
           client
@@ -164,20 +130,8 @@ public class DataGoKrAdapter {
   }
 
   /**
-   * XML 응답 문자열을 파싱하여 DataGoKrPolicyItem 리스트를 반환한다.
-   *
-   * <p>resultCode 분기 (data-go-kr-api.md §6):
-   *
-   * <ul>
-   *   <li>0: 정상 — NewsItem 파싱 후 반환.
-   *   <li>3: NODATA — 빈 리스트 반환 (정상 흐름).
-   *   <li>1/2/5: Transient 오류 — log warn + 빈 리스트 반환 (재시도는 호출자 책임).
-   *   <li>98: THREE_DAYS_OVER — 윈도우 분할 누락 코드 버그. log error + 빈 리스트.
-   *   <li>30/32: Auth 오류 — log error + 빈 리스트.
-   *   <li>그 외: log warn + 빈 리스트.
-   * </ul>
-   *
-   * <p>패키지-프라이빗(default) — 테스트에서 직접 접근 가능.
+   * XML 응답 문자열을 파싱하여 DataGoKrPolicyItem 리스트를 반환한다. resultCode 분기는 handleResultCodeBranch() 참조.
+   * 패키지-프라이빗 — 테스트에서 직접 접근 가능.
    */
   List<DataGoKrPolicyItem> parseXml(String xml) {
     try {
@@ -195,74 +149,83 @@ public class DataGoKrAdapter {
         return List.of();
       }
 
-      switch (resultCode) {
-        case "0":
-          // 정상 — 아래에서 NewsItem 처리
-          break;
-        case "3":
-          log.debug("DataGoKrAdapter.parseXml: NODATA_ERROR (resultCode=3) — 빈 리스트 반환");
-          return List.of();
-        case "1":
-        case "2":
-        case "5":
-          log.warn("DataGoKrAdapter.parseXml: Transient 오류 (resultCode={}) — 빈 리스트 반환", resultCode);
-          return List.of();
-        case "98":
-          log.error(
-              "DataGoKrAdapter.parseXml: THREE_DAYS_OVER_ERROR (resultCode=98)"
-                  + " — 슬라이딩 윈도우 분할 누락 코드 버그. 빈 리스트 반환");
-          return List.of();
-        case "30":
-        case "32":
-          log.error(
-              "DataGoKrAdapter.parseXml: Auth 오류 (resultCode={}) — serviceKey/IP 등록 확인 필요."
-                  + " 빈 리스트 반환",
-              resultCode);
-          return List.of();
-        default:
-          log.warn("DataGoKrAdapter.parseXml: 알 수 없는 resultCode={}. 빈 리스트 반환", resultCode);
-          return List.of();
+      List<DataGoKrPolicyItem> branchResult = handleResultCodeBranch(resultCode);
+      if (branchResult != null) {
+        return branchResult;
       }
 
       // resultCode=0 정상 처리
       if (response.body == null || response.body.newsItems == null) {
         return List.of();
       }
-
-      List<DataGoKrPolicyItem> result = new ArrayList<>();
-      for (NewsItem item : response.body.newsItems) {
-        // url 없는 항목 제외
-        String url = item.originalUrl;
-        if (url == null || url.isBlank()) {
-          continue;
-        }
-
-        // body: DataContents 우선, 없으면 SubTitle1
-        String body = item.dataContents;
-        if (body == null || body.isBlank()) {
-          body = item.subTitle1;
-        }
-
-        // approveDate 파싱 (MM/dd/yyyy HH:mm:ss)
-        LocalDateTime approveDate = null;
-        if (item.approveDate != null && !item.approveDate.isBlank()) {
-          try {
-            approveDate = LocalDateTime.parse(item.approveDate.trim(), APPROVE_DATE_FMT);
-          } catch (Exception ex) {
-            log.debug(
-                "DataGoKrAdapter: approveDate 파싱 실패. value={} error={}",
-                item.approveDate,
-                ex.getMessage());
-          }
-        }
-
-        result.add(new DataGoKrPolicyItem(url, item.ministerCode, item.title, body, approveDate));
-      }
-      return result;
+      return mapNewsItems(response.body.newsItems);
 
     } catch (Exception ex) {
       log.warn("DataGoKrAdapter.parseXml: 파싱 실패. error={}", ex.getMessage());
       return List.of();
+    }
+  }
+
+  /** resultCode 분기. 0(정상)이면 null 반환, 그 외 해당 빈/오류 결과를 반환한다. */
+  private List<DataGoKrPolicyItem> handleResultCodeBranch(String resultCode) {
+    switch (resultCode) {
+      case "0":
+        // 정상 — 호출자에서 NewsItem 처리
+        return null;
+      case "3":
+        log.debug("DataGoKrAdapter.parseXml: NODATA_ERROR (resultCode=3) — 빈 리스트 반환");
+        return List.of();
+      case "1":
+      case "2":
+      case "5":
+        log.warn("DataGoKrAdapter.parseXml: Transient 오류 (resultCode={}) — 빈 리스트 반환", resultCode);
+        return List.of();
+      case "98":
+        log.error(
+            "DataGoKrAdapter.parseXml: THREE_DAYS_OVER_ERROR (resultCode=98)"
+                + " — 슬라이딩 윈도우 분할 누락 코드 버그. 빈 리스트 반환");
+        return List.of();
+      case "30":
+      case "32":
+        log.error(
+            "DataGoKrAdapter.parseXml: Auth 오류 (resultCode={}) — serviceKey/IP 등록 확인 필요."
+                + " 빈 리스트 반환",
+            resultCode);
+        return List.of();
+      default:
+        log.warn("DataGoKrAdapter.parseXml: 알 수 없는 resultCode={}. 빈 리스트 반환", resultCode);
+        return List.of();
+    }
+  }
+
+  /** NewsItem 목록을 DataGoKrPolicyItem 목록으로 변환한다. url 없는 항목은 제외한다. */
+  private List<DataGoKrPolicyItem> mapNewsItems(List<PolicyResponse.NewsItem> newsItems) {
+    List<DataGoKrPolicyItem> result = new ArrayList<>();
+    for (PolicyResponse.NewsItem item : newsItems) {
+      String url = item.originalUrl;
+      if (url == null || url.isBlank()) {
+        continue;
+      }
+      String body = item.dataContents;
+      if (body == null || body.isBlank()) {
+        body = item.subTitle1;
+      }
+      LocalDateTime approveDate = parseApproveDate(item.approveDate);
+      result.add(new DataGoKrPolicyItem(url, item.ministerCode, item.title, body, approveDate));
+    }
+    return result;
+  }
+
+  /** approveDate 문자열을 파싱한다. 실패 시 null 반환 (로그 debug). */
+  private LocalDateTime parseApproveDate(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return null;
+    }
+    try {
+      return LocalDateTime.parse(raw.trim(), APPROVE_DATE_FMT);
+    } catch (Exception ex) {
+      log.debug("DataGoKrAdapter: approveDate 파싱 실패. value={} error={}", raw, ex.getMessage());
+      return null;
     }
   }
 
@@ -325,59 +288,5 @@ public class DataGoKrAdapter {
   private static String safePrefix(String xml) {
     if (xml == null) return "(null)";
     return xml.length() > 200 ? xml.substring(0, 200) : xml;
-  }
-
-  // ── Jackson XML 파싱용 내부 DTO ──
-
-  @JacksonXmlRootElement(localName = "response")
-  static class PolicyResponse {
-    @JacksonXmlProperty(localName = "header")
-    public ResponseHeader header;
-
-    @JacksonXmlProperty(localName = "body")
-    public ResponseBody body;
-  }
-
-  static class ResponseHeader {
-    @JacksonXmlProperty(localName = "resultCode")
-    public String resultCode;
-
-    @JacksonXmlProperty(localName = "resultMsg")
-    public String resultMsg;
-  }
-
-  static class ResponseBody {
-    @JacksonXmlElementWrapper(useWrapping = false)
-    @JacksonXmlProperty(localName = "NewsItem")
-    public List<NewsItem> newsItems;
-  }
-
-  static class NewsItem {
-    @JacksonXmlProperty(localName = "Title")
-    public String title;
-
-    @JacksonXmlProperty(localName = "SubTitle1")
-    public String subTitle1;
-
-    @JacksonXmlProperty(localName = "DataContents")
-    public String dataContents;
-
-    @JacksonXmlProperty(localName = "MinisterCode")
-    public String ministerCode;
-
-    @JacksonXmlProperty(localName = "OriginalUrl")
-    public String originalUrl;
-
-    @JacksonXmlProperty(localName = "ApproveDate")
-    public String approveDate;
-
-    // 보도자료 전용 첨부파일 (0..n) — 파싱은 하되 DataGoKrPolicyItem에는 포함 안 함
-    @JacksonXmlElementWrapper(useWrapping = false)
-    @JacksonXmlProperty(localName = "FileName")
-    public List<String> fileNames;
-
-    @JacksonXmlElementWrapper(useWrapping = false)
-    @JacksonXmlProperty(localName = "FileUrl")
-    public List<String> fileUrls;
   }
 }
