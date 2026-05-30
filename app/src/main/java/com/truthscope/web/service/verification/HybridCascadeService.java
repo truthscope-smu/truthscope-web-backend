@@ -1,38 +1,78 @@
 package com.truthscope.web.service.verification;
 
+import com.truthscope.web.adapter.datasource.DataGoKrAdapter;
+import com.truthscope.web.adapter.datasource.DataGoKrPolicyItem;
+import com.truthscope.web.adapter.verification.EvidencePrefilter;
+import com.truthscope.web.adapter.verification.EvidenceWindowResolver;
+import com.truthscope.web.scoring.EvidenceCandidate;
 import com.truthscope.web.scoring.EvidenceSnapshot;
+import com.truthscope.web.scoring.FidelityClassifierPort;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
- * ADR-016 Sparse+Dense skeleton. 본 phase = stub or minimal impl.
+ * Tier 2 evidence 수집 서비스 (T4 실구현).
  *
- * <p>입력: claim text. 출력: List&lt;EvidenceSnapshot&gt; top-5 candidate.
+ * <p>RC-01 결정: @Transactional 없음 — 외부 HTTP(data.go.kr + Gemini) 는 트랜잭션 바깥. retrieve() 는 DB 미접근.
  *
- * <p>Wave 2 = stub (fixture 반환) + integration test 에서 verified.
- *
- * <p>Sparse (Lucene BM25 placeholder) + Dense (embedding placeholder, ONNX 후속)
- *
- * <p>본 phase: fixture 반환. v2 트랙에서 실 구현 (ADR-021 §Sparse Lucene 인덱싱).
+ * <p>흐름: 1) EvidenceWindowResolver 로 날짜 윈도우 결정. 2) DataGoKrAdapter.fetchPolicyItems 로 정책뉴스/보도자료 수집.
+ * 3) EvidencePrefilter.top 으로 claim 핵심어 기반 top-8 후보 추출. 4) FidelityClassifierPort.classify 로
+ * SUPPORTED/CONTRADICTED + matchedFields 보유분만 반환. 예외/빈결과 시 빈 List (Tier 3 안전강하).
  */
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class HybridCascadeService {
 
-  public HybridCascadeService() {
-    // explicit no-arg constructor — dependencies will be injected in v2 impl track
-  }
+  private final DataGoKrAdapter dataGoKrAdapter;
+  private final FidelityClassifierPort fidelityClassifier;
+  private final EvidenceWindowResolver windowResolver;
+  private final EvidencePrefilter prefilter;
 
   /**
-   * Retrieve evidence snapshots for a given claim.
+   * claimText 에 대한 evidence 목록을 반환한다.
    *
-   * @param claimText the claim text to search evidence for
-   * @param topK maximum number of evidence candidates to return
-   * @return list of EvidenceSnapshot candidates (stub: always empty in this phase)
+   * <p>@Transactional 없음 (RC-01 — 외부 HTTP 포함).
+   *
+   * @param claimText 검증 대상 claim 텍스트
+   * @param topK 반환할 최대 evidence 수
+   * @return stance SUPPORTED/CONTRADICTED 이고 matchedFields 비어 있지 않은 EvidenceSnapshot 목록. 실패 시 빈 목록.
    */
-  @Transactional(readOnly = true)
   public List<EvidenceSnapshot> retrieve(String claimText, int topK) {
-    // Stub fixture — Sparse BM25 + Dense embedding impl deferred to ADR-016 v2 track
-    return List.of();
+    try {
+      // 1) 날짜 윈도우 결정
+      EvidenceWindowResolver.Window window = windowResolver.resolve(claimText);
+      LocalDate from = window.from();
+      LocalDate to = window.to();
+
+      // 2) data.go.kr 정책뉴스 + 보도자료 수집 (날짜 덤프, claim 검색 아님)
+      List<DataGoKrPolicyItem> items = dataGoKrAdapter.fetchPolicyItems(from, to);
+      if (items.isEmpty()) {
+        return List.of();
+      }
+
+      // 3) claim 핵심어 기반 lexical top-8 prefilter + EvidenceCandidate 변환
+      List<EvidenceCandidate> cands = prefilter.top(claimText, items, 8);
+      if (cands.isEmpty()) {
+        return List.of();
+      }
+
+      // 4) FidelityClassifierPort: classify → SUPPORTED/CONTRADICTED + matchedFields 보유분만 반환
+      List<EvidenceSnapshot> classified = fidelityClassifier.classify(claimText, cands, null);
+
+      // topK 제한 후 반환 (classifier 가 이미 필터링했지만 명시적 제한)
+      return classified.stream().limit(topK).collect(Collectors.toList());
+
+    } catch (Exception ex) {
+      log.warn(
+          "HybridCascadeService.retrieve: 예외 발생, Tier 3 안전강하. claimText 앞부분={} error={}",
+          claimText != null && claimText.length() > 50 ? claimText.substring(0, 50) : claimText,
+          ex.getMessage());
+      return List.of();
+    }
   }
 }

@@ -18,6 +18,7 @@ import com.truthscope.web.claim.validation.Tier3ReasonValidator;
 import com.truthscope.web.entity.FactcheckCache;
 import com.truthscope.web.repository.FactcheckCacheRepository;
 import com.truthscope.web.scoring.CascadePolicy;
+import com.truthscope.web.scoring.ClaimCascadeResult;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimScoreCalculator;
 import com.truthscope.web.scoring.ClaimScoreStatus;
@@ -101,10 +102,10 @@ class VerificationCascadeServiceTest {
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
-    List<ClaimVerificationSignal> result = service.cascade(List.of(draft));
+    List<ClaimCascadeResult> result = service.cascade(List.of(draft));
 
     assertThat(result).hasSize(1);
-    assertThat(result.get(0).claimId()).isEqualTo(draft.claimId());
+    assertThat(result.get(0).signal().claimId()).isEqualTo(draft.claimId());
   }
 
   @Test
@@ -114,10 +115,10 @@ class VerificationCascadeServiceTest {
     FactcheckCache mockCache = mock(FactcheckCache.class);
     when(factcheckCacheRepository.searchByText(draft.claimText())).thenReturn(List.of(mockCache));
 
-    List<ClaimVerificationSignal> result = service.cascade(List.of(draft));
+    List<ClaimCascadeResult> result = service.cascade(List.of(draft));
 
     assertThat(result).hasSize(1);
-    ClaimVerificationSignal signal = result.get(0);
+    ClaimVerificationSignal signal = result.get(0).signal();
     assertThat(signal.status()).isEqualTo(ClaimScoreStatus.SCORABLE);
     assertThat(signal.tier()).isEqualTo((short) 1);
     assertThat(signal.score()).isNotNull().isBetween(0, 100);
@@ -140,12 +141,12 @@ class VerificationCascadeServiceTest {
     when(urlValidator.validate(anyString())).thenReturn(true);
     when(policyScorer.calculate(any(), anyList(), any())).thenReturn(Optional.of(75));
 
-    List<ClaimVerificationSignal> result = service.cascade(List.of(draft));
+    List<ClaimCascadeResult> result = service.cascade(List.of(draft));
 
     // cache miss → HybridCascade → policyScorer 경로 → Tier 2 SCORABLE 신호 산출
     verify(hybridCascade, atLeastOnce()).retrieve(eq(draft.claimText()), anyInt());
     assertThat(result).hasSize(1);
-    ClaimVerificationSignal signal = result.get(0);
+    ClaimVerificationSignal signal = result.get(0).signal();
     assertThat(signal.tier()).isEqualTo((short) 2);
     assertThat(signal.status()).isEqualTo(ClaimScoreStatus.SCORABLE);
     assertThat(signal.score()).isEqualTo(75);
@@ -160,10 +161,10 @@ class VerificationCascadeServiceTest {
     when(tier3Validator.validate(any()))
         .thenReturn(Optional.of(HeuristicValidator.Tier3ReasonCandidate.INSUFFICIENT));
 
-    List<ClaimVerificationSignal> result = service.cascade(List.of(draft));
+    List<ClaimCascadeResult> result = service.cascade(List.of(draft));
 
     assertThat(result).hasSize(1);
-    ClaimVerificationSignal signal = result.get(0);
+    ClaimVerificationSignal signal = result.get(0).signal();
     assertThat(signal.status()).isEqualTo(ClaimScoreStatus.INSUFFICIENT);
     assertThat(signal.tier()).isEqualTo((short) 3);
     // 비판정 claim 은 score null (compact constructor 불변식)
@@ -199,12 +200,12 @@ class VerificationCascadeServiceTest {
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
-    List<ClaimVerificationSignal> result = service.cascade(List.of(draftWithAttribution));
+    List<ClaimCascadeResult> result = service.cascade(List.of(draftWithAttribution));
 
     // ClaimVerificationSignal 에는 attribution 필드가 없으므로 컴파일 수준에서 전파 불가
     // claimId 만 전파됨을 확인
     assertThat(result).hasSize(1);
-    assertThat(result.get(0).claimId()).isEqualTo(draftWithAttribution.claimId());
+    assertThat(result.get(0).signal().claimId()).isEqualTo(draftWithAttribution.claimId());
   }
 
   @Test
@@ -218,19 +219,19 @@ class VerificationCascadeServiceTest {
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
-    List<ClaimVerificationSignal> result = service.cascade(List.of(draft1, draft2, draft3));
+    List<ClaimCascadeResult> result = service.cascade(List.of(draft1, draft2, draft3));
 
     assertThat(result).hasSize(3);
     // 각 signal 의 claimId 가 입력 draft 와 1:1 대응
-    assertThat(result.get(0).claimId()).isEqualTo(draft1.claimId());
-    assertThat(result.get(1).claimId()).isEqualTo(draft2.claimId());
-    assertThat(result.get(2).claimId()).isEqualTo(draft3.claimId());
+    assertThat(result.get(0).signal().claimId()).isEqualTo(draft1.claimId());
+    assertThat(result.get(1).signal().claimId()).isEqualTo(draft2.claimId());
+    assertThat(result.get(2).signal().claimId()).isEqualTo(draft3.claimId());
   }
 
   @Test
   @DisplayName("cascade_handlesEmptyDrafts")
   void cascade_handlesEmptyDrafts() {
-    List<ClaimVerificationSignal> result = service.cascade(List.of());
+    List<ClaimCascadeResult> result = service.cascade(List.of());
 
     assertThat(result).isEmpty();
     verify(factcheckCacheRepository, never()).searchByText(anyString());
