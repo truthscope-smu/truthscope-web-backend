@@ -14,6 +14,7 @@ import com.truthscope.web.exception.ConflictException;
 import com.truthscope.web.exception.GlobalExceptionHandler;
 import com.truthscope.web.exception.NotFoundException;
 import com.truthscope.web.service.ArticleService;
+import com.truthscope.web.service.ArticleVerificationService;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,9 @@ class ArticleControllerTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private ArticleService articleService;
+
+  // findVerification 엔드포인트 추가로 컨트롤러 의존 주입됨 — WebMvcTest 컨텍스트 로드용 mock
+  @MockitoBean private ArticleVerificationService articleVerificationService;
 
   @Test
   @DisplayName("GET /api/v1/articles/{id} — 200 + ArticleResponse 반환")

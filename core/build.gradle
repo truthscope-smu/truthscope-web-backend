@@ -18,6 +18,9 @@ dependencies {
 	// @JdbcTypeCode(SqlTypes.JSON) — Hibernate 6 JSONB 매핑. spring-data-jpa는 hibernate-core를 optional로 둠 단계로 core compileClasspath에 자동 부재. compileOnly 명시 의무. 런타임은 app 모듈 spring-boot-starter-data-jpa 제공.
 	compileOnly 'org.hibernate.orm:hibernate-core'
 
+	// @JsonProperty — DTO JSON 키 보존(F-03). spring-data-jpa의 jackson-databind는 optional 전이라 core compileClasspath 부재. compileOnly 명시. 런타임은 app 모듈 spring-boot-starter-web 제공.
+	compileOnly 'com.fasterxml.jackson.core:jackson-annotations'
+
 	// 테스트 assertion — app 모듈 idiom(AssertJ) 정합. spring-boot BOM이 버전 관리.
 	testImplementation 'org.assertj:assertj-core'
 }
