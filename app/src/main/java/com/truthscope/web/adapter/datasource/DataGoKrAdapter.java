@@ -1,5 +1,6 @@
 package com.truthscope.web.adapter.datasource;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
@@ -43,6 +44,14 @@ public class DataGoKrAdapter {
   private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
   private static final DateTimeFormatter APPROVE_DATE_FMT =
       DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss");
+
+  // data.go.kr 실제 응답은 미선언 필드(NewsItemId/GroupingCode/ContentsStatus/ModifyDate 등, §5)를 포함하므로
+  // FAIL_ON_UNKNOWN_PROPERTIES=false 필수. 미설정 시 모든 실응답이 파싱 예외 → 항상 빈 결과 → 항상 Tier 3
+  // (T10 통합테스트 stub에 실 필드 포함시켜 회귀 검출).
+  private static final XmlMapper XML_MAPPER =
+      XmlMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .build();
 
   private final RestClient.Builder restClientBuilder;
 
@@ -172,8 +181,7 @@ public class DataGoKrAdapter {
    */
   List<DataGoKrPolicyItem> parseXml(String xml) {
     try {
-      XmlMapper xmlMapper = new XmlMapper();
-      PolicyResponse response = xmlMapper.readValue(xml, PolicyResponse.class);
+      PolicyResponse response = XML_MAPPER.readValue(xml, PolicyResponse.class);
 
       if (response == null) {
         log.warn("DataGoKrAdapter.parseXml: XmlMapper가 null 반환");
