@@ -1,6 +1,7 @@
 package com.truthscope.web.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -182,9 +183,9 @@ class ArticleVerificationControllerIntegrationTest extends AbstractIntegrationTe
   }
 
   @Test
-  @DisplayName("(C-5) evidence=[] 빈 배열 계약 단언")
+  @DisplayName("(C-5/66b) VerifySource 미시드 시 evidence=[] 단언")
   void findVerification_evidence_isEmptyArray() throws Exception {
-    // C-5: 66a 빈 배열 계약 — 66b에서 채움
+    // 66b: VerifySource가 시드되지 않았으므로 findByResultIdIn 결과 없음 → evidence 빈 배열
     mockMvc
         .perform(get("/api/v1/articles/" + savedArticle.getId() + "/verification"))
         .andExpect(status().isOk())
@@ -246,15 +247,21 @@ class ArticleVerificationControllerIntegrationTest extends AbstractIntegrationTe
         .andExpect(jsonPath("$.statusCode").value(404));
   }
 
-  // ── 3. sourceTransparency null (66a 계약) ─────────────────────────────────
+  // ── 3. sourceTransparency 실값 (66b) ─────────────────────────────────────
 
   @Test
-  @DisplayName("sourceTransparency=null 단언 — 66a 계약, 66b에서 채움")
-  void findVerification_sourceTransparency_isNull() throws Exception {
-    // 66a 계약: sourceTransparency=null (Jackson 기본: null 필드는 "null"로 직렬화)
+  @DisplayName("sourceTransparency 실값 단언 — 66b tier 재구성")
+  void findVerification_sourceTransparency_realValue() throws Exception {
+    // 66b: tier 재구성으로 sourceTransparency 집계
+    // fixture: claim0(tier=1, score=70) → EXPLICIT, claim1+claim2(result 없음) → NONE
+    // 집계: explicit=1, ambiguous=0, none=2 → band=MISSING_SOURCE
     mockMvc
         .perform(get("/api/v1/articles/" + savedArticle.getId() + "/verification"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.sourceTransparency").value(nullValue()));
+        .andExpect(jsonPath("$.sourceTransparency").isMap())
+        .andExpect(jsonPath("$.sourceTransparency.explicitCount").value(1))
+        .andExpect(jsonPath("$.sourceTransparency.ambiguousCount").value(0))
+        .andExpect(jsonPath("$.sourceTransparency.noneCount").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.sourceTransparency.band").value("MISSING_SOURCE"));
   }
 }

@@ -11,6 +11,8 @@ import com.truthscope.web.entity.Claim;
 import com.truthscope.web.entity.VerificationResult;
 import com.truthscope.web.entity.enums.SessionStatus;
 import com.truthscope.web.entity.enums.Verdict;
+import com.truthscope.web.scoring.SourceTransparencyAggregator;
+import com.truthscope.web.scoring.SourceTransparencySummary;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -110,10 +112,11 @@ class ArticleVerificationConverterTest {
       Claim claim = buildClaim(claimId, "정부 발표 claim 텍스트", "홍길동", true, "원문 맥락", (short) 0);
       VerificationResult result =
           buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, verifiedAt);
-      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
+      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(source));
+          ArticleVerificationConverter.toResponse(
+              article, session, "MOSTLY_FACT", List.of(source), null);
 
       assertThat(response.getClaims()).hasSize(1);
       ClaimVerificationItem item = response.getClaims().get(0);
@@ -133,10 +136,11 @@ class ArticleVerificationConverterTest {
       Claim claim = buildClaim(claimId, "claim", null, false, null, (short) 0);
       VerificationResult result =
           buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, LocalDateTime.now());
-      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
+      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(source));
+          ArticleVerificationConverter.toResponse(
+              article, session, "MOSTLY_FACT", List.of(source), null);
 
       assertThat(response.getClaims().get(0).getVerdict()).isEqualTo("SUPPORTED");
     }
@@ -153,10 +157,11 @@ class ArticleVerificationConverterTest {
       VerificationResult result =
           buildResult(
               claim, (short) 2, Verdict.SUPPORTED, (short) 70, disclaimerText, LocalDateTime.now());
-      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
+      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(source));
+          ArticleVerificationConverter.toResponse(
+              article, session, "MOSTLY_FACT", List.of(source), null);
 
       assertThat(response.getClaims().get(0).getDisclaimer()).isEqualTo(disclaimerText);
     }
@@ -172,10 +177,10 @@ class ArticleVerificationConverterTest {
       // CodeRabbit 반영: 실제 Tier 1(tier=1) result로 검증 — 이름과 fixture 일치
       VerificationResult result =
           buildResult(claim, (short) 1, Verdict.SUPPORTED, (short) 80, null, LocalDateTime.now());
-      ClaimItemSource source = new ClaimItemSource(claim, result, "FACT", null);
+      ClaimItemSource source = new ClaimItemSource(claim, result, "FACT", null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "FACT", List.of(source));
+          ArticleVerificationConverter.toResponse(article, session, "FACT", List.of(source), null);
 
       assertThat(response.getClaims().get(0).getDisclaimer()).isNull();
       assertThat(response.getClaims().get(0).getTier()).isEqualTo((short) 1);
@@ -192,10 +197,11 @@ class ArticleVerificationConverterTest {
       Claim claim = buildClaim(claimId, "claim", null, false, null, (short) 0);
       VerificationResult result =
           buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, verifiedAt);
-      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
+      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(source));
+          ArticleVerificationConverter.toResponse(
+              article, session, "MOSTLY_FACT", List.of(source), null);
 
       assertThat(response.getClaims().get(0).getVerifiedAt()).isEqualTo(verifiedAt);
     }
@@ -210,10 +216,11 @@ class ArticleVerificationConverterTest {
       Claim claim = buildClaim(claimId, "인용 아닌 claim", null, false, null, (short) 0);
       VerificationResult result =
           buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, LocalDateTime.now());
-      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
+      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(source));
+          ArticleVerificationConverter.toResponse(
+              article, session, "MOSTLY_FACT", List.of(source), null);
 
       assertThat(response.getClaims().get(0).isQuotedClaim()).isFalse();
     }
@@ -228,7 +235,7 @@ class ArticleVerificationConverterTest {
   class EvidenceContract {
 
     @Test
-    @DisplayName("66a: VerificationResult 있는 claim의 evidence는 빈 배열")
+    @DisplayName("66b: sources=List.of()이면 evidence는 빈 배열")
     void evidence_빈_배열() {
       AnalysisSession session = buildSession((short) 75);
       Article article = buildArticle(session);
@@ -237,50 +244,78 @@ class ArticleVerificationConverterTest {
       Claim claim = buildClaim(claimId, "claim", null, false, null, (short) 0);
       VerificationResult result =
           buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, LocalDateTime.now());
-      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
+      // sources=List.of() → evidence 빈 배열
+      ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(source));
+          ArticleVerificationConverter.toResponse(
+              article, session, "MOSTLY_FACT", List.of(source), null);
 
       assertThat(response.getClaims().get(0).getEvidence()).isEmpty();
     }
 
     @Test
-    @DisplayName("66a: VerificationResult null(미검증) claim의 evidence도 빈 배열")
+    @DisplayName("66b: VerificationResult null(미검증) claim의 evidence도 빈 배열")
     void evidence_미검증_claim도_빈_배열() {
       AnalysisSession session = buildSession(null);
       Article article = buildArticle(session);
       UUID claimId = UUID.randomUUID();
 
       Claim claim = buildClaim(claimId, "미검증 claim", null, false, null, (short) 0);
-      // result=null (미검증)
-      ClaimItemSource source = new ClaimItemSource(claim, null, null, null);
+      // result=null (미검증), sources=List.of()
+      ClaimItemSource source = new ClaimItemSource(claim, null, null, null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, null, List.of(source));
+          ArticleVerificationConverter.toResponse(article, session, null, List.of(source), null);
 
       assertThat(response.getClaims().get(0).getEvidence()).isEmpty();
     }
   }
 
   // -----------------------------------------------------------------------------------------
-  // 3. sourceTransparency=null 계약 (66a)
+  // 3. sourceTransparency 계약 (66b)
   // -----------------------------------------------------------------------------------------
 
   @Nested
-  @DisplayName("sourceTransparency null 계약 (66a)")
+  @DisplayName("sourceTransparency 계약 (66b)")
   class SourceTransparencyContract {
 
     @Test
-    @DisplayName("66a: sourceTransparency는 항상 null (66b에서 채움)")
-    void sourceTransparency_null() {
+    @DisplayName("66b: sourceTransparency=null을 전달하면 응답도 null")
+    void sourceTransparency_null_전달_시_null() {
       AnalysisSession session = buildSession((short) 75);
       Article article = buildArticle(session);
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of());
+          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(), null);
 
       assertThat(response.getSourceTransparency()).isNull();
+    }
+
+    @Test
+    @DisplayName("66b: sourceTransparency 집계 결과를 전달하면 응답에 그대로 반영된다")
+    void sourceTransparency_집계결과_전달_시_반영() {
+      AnalysisSession session = buildSession((short) 75);
+      Article article = buildArticle(session);
+
+      // tier 1 claim 1건 → EXPLICIT 1건 → ALL_EXPLICIT band
+      SourceTransparencySummary summary =
+          SourceTransparencyAggregator.aggregateSourceTransparency(
+              List.of(
+                  new com.truthscope.web.scoring.ClaimVerificationSignal(
+                      UUID.randomUUID(),
+                      (short) 1,
+                      80,
+                      com.truthscope.web.scoring.ClaimScoreStatus.SCORABLE,
+                      com.truthscope.web.scoring.SourceTransparency.EXPLICIT)));
+
+      ArticleVerificationResponse response =
+          ArticleVerificationConverter.toResponse(
+              article, session, "MOSTLY_FACT", List.of(), summary);
+
+      assertThat(response.getSourceTransparency()).isNotNull();
+      assertThat(response.getSourceTransparency().explicitCount()).isEqualTo(1);
+      assertThat(response.getSourceTransparency().noneCount()).isEqualTo(0);
     }
   }
 
@@ -299,7 +334,7 @@ class ArticleVerificationConverterTest {
       Article article = buildArticle(session);
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of());
+          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(), null);
 
       assertThat(response.getUrl()).isEqualTo("https://news.example.com/article/1");
       assertThat(response.getTitle()).isEqualTo("기사 제목");
@@ -313,7 +348,7 @@ class ArticleVerificationConverterTest {
       Article article = buildArticle(session);
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of());
+          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(), null);
 
       assertThat(response.getStatus()).isEqualTo("COMPLETED");
     }
@@ -333,7 +368,7 @@ class ArticleVerificationConverterTest {
       Article article = buildArticle(session);
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of());
+          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", List.of(), null);
 
       assertThat(response.getAnalysisCompletedAt()).isEqualTo(completedAt);
     }
@@ -345,7 +380,7 @@ class ArticleVerificationConverterTest {
       Article article = buildArticle(session);
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, null, List.of());
+          ArticleVerificationConverter.toResponse(article, session, null, List.of(), null);
 
       assertThat(response.getTotalScore()).isNull();
       assertThat(response.getArticleLabel()).isNull();
@@ -369,11 +404,11 @@ class ArticleVerificationConverterTest {
 
       List<ClaimItemSource> sources =
           List.of(
-              new ClaimItemSource(claim0, result0, "FACT", null),
-              new ClaimItemSource(claim1, result1, "MOSTLY_FACT", null));
+              new ClaimItemSource(claim0, result0, "FACT", null, List.of()),
+              new ClaimItemSource(claim1, result1, "MOSTLY_FACT", null, List.of()));
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", sources);
+          ArticleVerificationConverter.toResponse(article, session, "MOSTLY_FACT", sources, null);
 
       assertThat(response.getClaims()).hasSize(2);
       assertThat(response.getClaims().get(0).getClaimText()).isEqualTo("첫번째 claim");
@@ -399,10 +434,10 @@ class ArticleVerificationConverterTest {
       UUID claimId = UUID.randomUUID();
 
       Claim claim = buildClaim(claimId, "미검증 claim", "발언자", true, "맥락", (short) 0);
-      ClaimItemSource source = new ClaimItemSource(claim, null, null, null);
+      ClaimItemSource source = new ClaimItemSource(claim, null, null, null, List.of());
 
       ArticleVerificationResponse response =
-          ArticleVerificationConverter.toResponse(article, session, null, List.of(source));
+          ArticleVerificationConverter.toResponse(article, session, null, List.of(source), null);
 
       ClaimVerificationItem item = response.getClaims().get(0);
       assertThat(item.getClaimText()).isEqualTo("미검증 claim");

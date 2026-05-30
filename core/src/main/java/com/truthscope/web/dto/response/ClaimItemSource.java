@@ -2,6 +2,8 @@ package com.truthscope.web.dto.response;
 
 import com.truthscope.web.entity.Claim;
 import com.truthscope.web.entity.VerificationResult;
+import com.truthscope.web.entity.VerifySource;
+import java.util.List;
 
 /**
  * claim별 검증 결과 조립 입력 레코드 (ArticleVerificationConverter 입력).
@@ -13,6 +15,11 @@ import com.truthscope.web.entity.VerificationResult;
  * @param result VerificationResult 엔티티, null이면 미검증 claim
  * @param truthLabel TruthLabel.name() 도출값, SCORABLE이고 score!=null인 경우만 non-null
  * @param claimScoreStatus ClaimScoreStatus.name() 도출값, SCORABLE이면 null (truthLabel과 상호 배타)
+ * @param sources 이 claim에 해당하는 VerifySource 목록 (66b T8, VerifySource bulk 조회 결과)
  */
 public record ClaimItemSource(
-    Claim claim, VerificationResult result, String truthLabel, String claimScoreStatus) {}
+    Claim claim,
+    VerificationResult result,
+    String truthLabel,
+    String claimScoreStatus,
+    List<VerifySource> sources) {}
