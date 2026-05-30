@@ -16,6 +16,7 @@ import com.truthscope.web.exception.NotFoundException;
 import com.truthscope.web.repository.ArticleRepository;
 import com.truthscope.web.repository.ClaimRepository;
 import com.truthscope.web.repository.VerificationResultRepository;
+import com.truthscope.web.repository.VerifySourceRepository;
 import com.truthscope.web.scoring.ScoreBandPolicy;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,6 +51,7 @@ class ArticleVerificationServiceTest {
   @Mock private ArticleRepository articleRepository;
   @Mock private ClaimRepository claimRepository;
   @Mock private VerificationResultRepository verificationResultRepository;
+  @Mock private VerifySourceRepository verifySourceRepository;
 
   // ScoreBandPolicy(80, 60, 40, 20) — 기본값과 동일. MOSTLY_FACT 밴드: 60..79
   private static final ScoreBandPolicy BAND_POLICY = new ScoreBandPolicy(80, 60, 40, 20);
@@ -60,7 +62,11 @@ class ArticleVerificationServiceTest {
   void setUp() {
     service =
         new ArticleVerificationService(
-            articleRepository, claimRepository, verificationResultRepository, BAND_POLICY);
+            articleRepository,
+            claimRepository,
+            verificationResultRepository,
+            verifySourceRepository,
+            BAND_POLICY);
   }
 
   // -----------------------------------------------------------------------------------------

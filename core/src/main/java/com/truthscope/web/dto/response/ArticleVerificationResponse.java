@@ -97,7 +97,7 @@ public class ArticleVerificationResponse {
     /** 도출값 (비판정), SCORABLE이면 null. FE 매핑: status (RC-06) */
     private String claimScoreStatus;
 
-    /** 66b 빈 배열 계약 (C-5) */
-    @Builder.Default private List<Object> evidence = List.of();
+    /** 66b 출처 증거 목록 (C-5). VerifySource가 없으면 빈 배열. */
+    @Builder.Default private List<EvidenceDto> evidence = List.of();
   }
 }

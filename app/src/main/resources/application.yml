@@ -72,7 +72,7 @@ truthscope:
     prompt-version: "v1.0.0"
     schema-version: "v1.0.0"
   cascade:
-    source-count-threshold: 3
+    source-count-threshold: 1
     tier1-hit-required: true
     critical-field-cap-percent: 50
     claim-split-fields: ["수치", "일자", "대상", "금액", "제도명"]

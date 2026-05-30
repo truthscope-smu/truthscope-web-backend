@@ -5,6 +5,7 @@ import com.truthscope.web.claim.validation.HeuristicValidator;
 import com.truthscope.web.claim.validation.Tier3ReasonValidator;
 import com.truthscope.web.repository.FactcheckCacheRepository;
 import com.truthscope.web.scoring.CascadePolicy;
+import com.truthscope.web.scoring.ClaimCascadeResult;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimScoreCalculator;
 import com.truthscope.web.scoring.ClaimScoreStatus;
@@ -42,12 +43,12 @@ public class VerificationCascadeService {
   private final ClaimAttributionService attributionService;
 
   /**
-   * 주어진 ClaimDraft 목록을 3-Tier Cascade 로 검증하고 ClaimVerificationSignal 목록을 반환한다.
+   * 주어진 ClaimDraft 목록을 3-Tier Cascade 로 검증하고 ClaimCascadeResult 목록을 반환한다.
    *
    * @param drafts Wave 1 ClaimAnalysisService 가 추출한 draft 목록
-   * @return 각 draft 에 대응하는 ClaimVerificationSignal 목록 (순서 보존)
+   * @return 각 draft 에 대응하는 ClaimCascadeResult 목록 (순서 보존)
    */
-  public List<ClaimVerificationSignal> cascade(List<ClaimDraft> drafts) {
+  public List<ClaimCascadeResult> cascade(List<ClaimDraft> drafts) {
     return drafts.stream().map(this::cascadeOne).toList();
   }
 
@@ -57,25 +58,31 @@ public class VerificationCascadeService {
    * <p>흐름:
    *
    * <ol>
-   *   <li>Tier 1: factcheck_cache 전문 검색 -> 히트 시 SCORABLE (score=100, EXPLICIT)
+   *   <li>Tier 1: factcheck_cache 전문 검색 -> 히트 시 SCORABLE (score=100, EXPLICIT), evidence=빈 리스트
    *   <li>Tier 1': Google FC API stub (v1.x 항상 empty, bean 보존 목적)
    *   <li>Tier 2: HybridCascadeService retrieve -> URL 검증 -> PolicyEvidenceScorer /
-   *       StanceRatioScorer
-   *   <li>Tier 3: Tier3ReasonValidator -> 비판정 신호 반환
+   *       StanceRatioScorer. 성공 시 ClaimCascadeResult(signal, validSnapshots) 반환.
+   *   <li>Tier 3: Tier3ReasonValidator -> 비판정 신호, evidence=빈 리스트
    * </ol>
    *
    * <p>attribution 부착은 v1.x 에서 스킵 (DB 부하 절약). µ2.4 persistCascadeResults 에서 처리.
    *
    * @param draft 검증 대상 ClaimDraft
-   * @return ClaimVerificationSignal (compact constructor 불변식 보장)
+   * @return ClaimCascadeResult (signal compact constructor 불변식 보장, Tier 2 경우 evidence 포함)
    */
-  private ClaimVerificationSignal cascadeOne(ClaimDraft draft) {
+  private ClaimCascadeResult cascadeOne(ClaimDraft draft) {
 
     // Tier 1: factcheck_cache 전문 검색
     List<?> cacheHits = factcheckCacheRepository.searchByText(draft.claimText());
     if (!cacheHits.isEmpty()) {
-      return new ClaimVerificationSignal(
-          draft.claimId(), (short) 1, 100, ClaimScoreStatus.SCORABLE, SourceTransparency.EXPLICIT);
+      return new ClaimCascadeResult(
+          new ClaimVerificationSignal(
+              draft.claimId(),
+              (short) 1,
+              100,
+              ClaimScoreStatus.SCORABLE,
+              SourceTransparency.EXPLICIT),
+          List.of());
     }
 
     // Tier 1': Google FC API 진입점 — v1.x 미라우팅 (bean은 field 주입으로 보존, 호출 X).
@@ -86,32 +93,52 @@ public class VerificationCascadeService {
     List<EvidenceSnapshot> validSnapshots =
         snapshots.stream().filter(s -> urlValidator.validate(s.url())).toList();
 
-    if (validSnapshots.size() >= cascadePolicy.sourceCountThreshold()) {
-      // PolicyEvidenceScorer 우선 시도
-      Optional<Integer> policyScore = policyScorer.calculate(draft, validSnapshots, cascadePolicy);
-      if (policyScore.isPresent()) {
-        return new ClaimVerificationSignal(
-            draft.claimId(),
-            (short) 2,
-            policyScore.get(),
-            ClaimScoreStatus.SCORABLE,
-            SourceTransparency.AMBIGUOUS);
-      }
-
-      // StanceRatioScorer fallback
-      Optional<Integer> stanceScore = stanceScorer.calculate(draft, validSnapshots, cascadePolicy);
-      if (stanceScore.isPresent()) {
-        return new ClaimVerificationSignal(
-            draft.claimId(),
-            (short) 2,
-            stanceScore.get(),
-            ClaimScoreStatus.SCORABLE,
-            SourceTransparency.AMBIGUOUS);
-      }
+    Optional<ClaimCascadeResult> tier2Result = tryTier2Score(draft, validSnapshots);
+    if (tier2Result.isPresent()) {
+      return tier2Result.get();
     }
 
-    // Tier 3: Tier3ReasonValidator -> 비판정 신호
-    return buildTier3Signal(draft);
+    // Tier 3: Tier3ReasonValidator -> 비판정 신호, evidence 없음
+    return new ClaimCascadeResult(buildTier3Signal(draft), List.of());
+  }
+
+  /**
+   * Tier 2 점수 산출을 시도한다. PolicyEvidenceScorer 우선, StanceRatioScorer fallback. 출처 수 임계값 미충족 또는 두
+   * scorer 모두 실패 시 empty 반환.
+   */
+  private Optional<ClaimCascadeResult> tryTier2Score(
+      ClaimDraft draft, List<EvidenceSnapshot> validSnapshots) {
+    if (validSnapshots.size() < cascadePolicy.sourceCountThreshold()) {
+      return Optional.empty();
+    }
+
+    Optional<Integer> policyScore = policyScorer.calculate(draft, validSnapshots, cascadePolicy);
+    if (policyScore.isPresent()) {
+      return Optional.of(
+          new ClaimCascadeResult(
+              new ClaimVerificationSignal(
+                  draft.claimId(),
+                  (short) 2,
+                  policyScore.get(),
+                  ClaimScoreStatus.SCORABLE,
+                  SourceTransparency.AMBIGUOUS),
+              validSnapshots));
+    }
+
+    Optional<Integer> stanceScore = stanceScorer.calculate(draft, validSnapshots, cascadePolicy);
+    if (stanceScore.isPresent()) {
+      return Optional.of(
+          new ClaimCascadeResult(
+              new ClaimVerificationSignal(
+                  draft.claimId(),
+                  (short) 2,
+                  stanceScore.get(),
+                  ClaimScoreStatus.SCORABLE,
+                  SourceTransparency.AMBIGUOUS),
+              validSnapshots));
+    }
+
+    return Optional.empty();
   }
 
   /**

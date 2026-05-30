@@ -18,6 +18,8 @@ dependencies {
 	implementation 'org.apache.httpcomponents.client5:httpclient5'
 	implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
 	implementation 'org.springframework.boot:spring-boot-starter-aop'
+	// Phase 66b — data.go.kr 정책뉴스/보도자료 XML 응답 파싱 (XmlMapper). 버전 = Spring Boot BOM.
+	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'

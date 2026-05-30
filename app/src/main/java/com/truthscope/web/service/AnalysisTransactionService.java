@@ -1,12 +1,14 @@
 package com.truthscope.web.service;
 
 import com.truthscope.web.converter.AnalysisConverter;
+import com.truthscope.web.converter.VerifySourceConverter;
 import com.truthscope.web.dto.response.AnalysisResponse;
 import com.truthscope.web.dto.response.ExtractedArticle;
 import com.truthscope.web.entity.AnalysisSession;
 import com.truthscope.web.entity.Article;
 import com.truthscope.web.entity.Claim;
 import com.truthscope.web.entity.VerificationResult;
+import com.truthscope.web.entity.VerifySource;
 import com.truthscope.web.entity.enums.ClaimImportance;
 import com.truthscope.web.entity.enums.SessionStatus;
 import com.truthscope.web.entity.enums.Tier3Reason;
@@ -16,7 +18,9 @@ import com.truthscope.web.repository.AnalysisSessionRepository;
 import com.truthscope.web.repository.ArticleRepository;
 import com.truthscope.web.repository.ClaimRepository;
 import com.truthscope.web.repository.VerificationResultRepository;
+import com.truthscope.web.repository.VerifySourceRepository;
 import com.truthscope.web.scoring.ArticleFactScore;
+import com.truthscope.web.scoring.ClaimCascadeResult;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimScoreStatus;
 import com.truthscope.web.scoring.ClaimVerificationSignal;
@@ -41,6 +45,7 @@ public class AnalysisTransactionService {
   private final ArticleRepository articleRepository;
   private final ClaimRepository claimRepository;
   private final VerificationResultRepository verificationResultRepository;
+  private final VerifySourceRepository verifySourceRepository;
 
   /** 세션 생성 후 ID 반환 */
   @Transactional
@@ -117,7 +122,7 @@ public class AnalysisTransactionService {
   /**
    * Wave 2 Cascade 결과를 영속화하고 세션을 COMPLETED로 전이한다.
    *
-   * <p>Wave 2 µ2.4 신규.
+   * <p>Wave 2 µ2.4 신규. Phase 66b T7 amend: cascadeResults 추가 + VerifySource 저장.
    *
    * <ul>
    *   <li>R1-8 amend: Integer(ClaimVerificationSignal.score) → Short(VerificationResult.score) 경계
@@ -128,22 +133,26 @@ public class AnalysisTransactionService {
    * </ul>
    *
    * @param sessionId 대상 세션 ID
-   * @param signals Wave 2 cascade가 생성한 ClaimVerificationSignal 목록 (입력 draft와 같은 순서/크기)
-   * @param savedClaims persistClaims가 반환한 영속화된 Claim 엔티티 목록 (signals와 인덱스 페어링)
+   * @param savedClaims persistClaims가 반환한 영속화된 Claim 엔티티 목록 (cascadeResults와 인덱스 페어링)
    * @param totalScore Phase 55 ArticleFactScoreAggregator 결과 (검증 가능 claim 없으면 empty)
    * @param articleLabel Phase 55 TruthLabelDeriver 결과 (totalScore empty 이면 empty)
    * @param transparencySummary Phase 55 SourceTransparencyAggregator 결과
    * @param coverage Phase 55 CoverageAggregator 결과 (non-null, 빈 경우 모든 count=0)
+   * @param cascadeResults Wave 2 cascade 결과 (savedClaims 와 동일 인덱스 순서; signal() 로 신호 도출)
    */
   @Transactional
   public void persistCascadeResults(
       UUID sessionId,
-      List<ClaimVerificationSignal> signals,
       List<Claim> savedClaims,
       Optional<ArticleFactScore> totalScore,
       Optional<TruthLabel> articleLabel,
       SourceTransparencySummary transparencySummary,
-      CoverageSummary coverage) {
+      CoverageSummary coverage,
+      List<ClaimCascadeResult> cascadeResults) {
+
+    // signals는 cascadeResults에서 도출 (cascadeResults.get(i).signal() == 이전 signals.get(i))
+    List<ClaimVerificationSignal> signals =
+        cascadeResults.stream().map(ClaimCascadeResult::signal).toList();
 
     if (signals.size() != savedClaims.size()) {
       throw new IllegalStateException(
@@ -158,9 +167,13 @@ public class AnalysisTransactionService {
             .findById(sessionId)
             .orElseThrow(() -> new IllegalStateException("세션을 찾을 수 없습니다: " + sessionId));
 
-    // 1. signals → VerificationResult entity 영속화 (인덱스 페어링)
+    // 1. signals → VerificationResult entity 영속화 + VerifySource 저장 (인덱스 페어링)
     for (int i = 0; i < signals.size(); i++) {
-      verificationResultRepository.save(buildResult(signals.get(i), savedClaims.get(i)));
+      VerificationResult saved =
+          verificationResultRepository.save(buildResult(signals.get(i), savedClaims.get(i)));
+      List<VerifySource> rows =
+          VerifySourceConverter.toEntities(saved, cascadeResults.get(i).evidence());
+      verifySourceRepository.saveAll(rows);
     }
 
     // 2. Tier count 계산 (Integer → Short 경계)

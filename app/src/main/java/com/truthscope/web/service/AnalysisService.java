@@ -8,6 +8,7 @@ import com.truthscope.web.scoring.ArticleFactScore;
 import com.truthscope.web.scoring.ArticleFactScoreAggregator;
 import com.truthscope.web.scoring.ArticleScorePolicy;
 import com.truthscope.web.scoring.ClaimAnalysisPort;
+import com.truthscope.web.scoring.ClaimCascadeResult;
 import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimVerificationSignal;
 import com.truthscope.web.scoring.CoverageAggregator;
@@ -88,7 +89,9 @@ public class AnalysisService {
     List<ClaimDraft> drafts = claimAnalysisPort.analyze(extracted.getBody(), userApiKey);
     List<com.truthscope.web.entity.Claim> savedClaims =
         transactionService.persistClaims(articleId, drafts);
-    List<ClaimVerificationSignal> signals = verificationCascadeService.cascade(drafts);
+    List<ClaimCascadeResult> results = verificationCascadeService.cascade(drafts);
+    List<ClaimVerificationSignal> signals =
+        results.stream().map(ClaimCascadeResult::signal).toList();
 
     // CX2-1 Critical lock: Phase 55 집계 4함수 STATIC 직접 호출
     Optional<ArticleFactScore> totalScore =
@@ -100,7 +103,7 @@ public class AnalysisService {
     CoverageSummary coverage = CoverageAggregator.aggregateCoverage(signals);
 
     transactionService.persistCascadeResults(
-        sessionId, signals, savedClaims, totalScore, articleLabel, transparencySummary, coverage);
+        sessionId, savedClaims, totalScore, articleLabel, transparencySummary, coverage, results);
 
     return AnalysisResponse.builder()
         .sessionId(sessionId)
