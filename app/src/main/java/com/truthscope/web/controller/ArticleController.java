@@ -2,7 +2,9 @@ package com.truthscope.web.controller;
 
 import com.truthscope.web.dto.request.AttachToSessionRequest;
 import com.truthscope.web.dto.response.ArticleResponse;
+import com.truthscope.web.dto.response.ArticleVerificationResponse;
 import com.truthscope.web.service.ArticleService;
+import com.truthscope.web.service.ArticleVerificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ArticleController {
 
   private final ArticleService articleService;
+  private final ArticleVerificationService articleVerificationService;
 
   @Operation(summary = "기사 ID로 조회", description = "추출된 기사를 ID로 조회한다.")
   @ApiResponses({
@@ -47,5 +50,15 @@ public class ArticleController {
   public ArticleResponse attachToSession(
       @PathVariable UUID id, @Valid @RequestBody AttachToSessionRequest request) {
     return articleService.attachToSession(id, request.sessionId());
+  }
+
+  @Operation(summary = "기사 검증 결과 조회", description = "기사 ID로 분석 검증 결과(점수/판정/claim별 결과)를 조회한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "404", description = "기사/세션 미존재")
+  })
+  @GetMapping("/{id}/verification")
+  public ArticleVerificationResponse findVerification(@PathVariable UUID id) {
+    return articleVerificationService.getVerification(id);
   }
 }
