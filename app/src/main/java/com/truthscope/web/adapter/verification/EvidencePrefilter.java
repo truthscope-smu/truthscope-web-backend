@@ -57,7 +57,9 @@ public class EvidencePrefilter {
     List<ScoredItem> scored = new ArrayList<>();
     for (DataGoKrPolicyItem item : dedupe.values()) {
       int score = score(item, keywords);
-      scored.add(new ScoredItem(item, score));
+      if (score > 0) {
+        scored.add(new ScoredItem(item, score));
+      }
     }
 
     scored.sort((a, b) -> Integer.compare(b.score, a.score));

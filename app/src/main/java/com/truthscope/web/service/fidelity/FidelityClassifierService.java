@@ -3,8 +3,7 @@ package com.truthscope.web.service.fidelity;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.truthscope.web.audit.KeyFingerprinter;
-import com.truthscope.web.gemini.FidelityPayload;
-import com.truthscope.web.gemini.FidelityPayload.FidelityItem;
+import com.truthscope.web.gemini.FidelityItem;
 import com.truthscope.web.gemini.FidelityPromptShield;
 import com.truthscope.web.gemini.GeminiGenerateContentResponse;
 import com.truthscope.web.gemini.GeminiRequest;
@@ -15,6 +14,7 @@ import com.truthscope.web.service.audit.ApiUsageLogService;
 import jakarta.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -217,8 +217,9 @@ public class FidelityClassifierService implements FidelityClassifierPort {
    * CONTRADICTED, neutral → NEUTRAL. summary 는 EvidenceSnapshot 5필드 불변 계약에 따라 폐기 (converter 에서 도출).
    */
   private EvidenceSnapshot toSnapshot(FidelityItem item) {
+    String normalized = item.stance() != null ? item.stance().trim().toLowerCase(Locale.ROOT) : "";
     String stance =
-        switch (item.stance().toLowerCase()) {
+        switch (normalized) {
           case "supports" -> "SUPPORTED";
           case "refutes" -> "CONTRADICTED";
           default -> "NEUTRAL";

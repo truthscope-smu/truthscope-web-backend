@@ -2,8 +2,6 @@ package com.truthscope.web.adapter.datasource;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -89,7 +87,6 @@ public class DataGoKrAdapter {
   /** 단일 윈도우(<=3일) + 단일 endpoint에 대해 GET 요청 후 파싱 결과를 반환한다. 패키지-프라이빗. */
   List<DataGoKrPolicyItem> fetchWindow(String endpoint, LocalDate start, LocalDate end) {
     try {
-      String encodedKey = URLEncoder.encode(serviceKey, StandardCharsets.UTF_8);
       String startDateStr = start.format(DATE_FMT);
       String endDateStr = end.format(DATE_FMT);
       RestClient client = restClientBuilder.baseUrl(endpoint).build();
@@ -98,7 +95,7 @@ public class DataGoKrAdapter {
               .get()
               .uri(
                   "?serviceKey={key}&startDate={start}&endDate={end}",
-                  encodedKey,
+                  serviceKey,
                   startDateStr,
                   endDateStr)
               .retrieve()

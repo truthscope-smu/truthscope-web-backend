@@ -4,6 +4,7 @@ import com.truthscope.web.entity.VerificationResult;
 import com.truthscope.web.entity.VerifySource;
 import com.truthscope.web.scoring.EvidenceSnapshot;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
@@ -62,7 +63,7 @@ public class VerifySourceConverter {
     if (stance == null) {
       return null;
     }
-    return switch (stance.toUpperCase()) {
+    return switch (stance.toUpperCase(Locale.ROOT)) {
       case "SUPPORTED" -> "supports";
       case "CONTRADICTED" -> "refutes";
       case "NEUTRAL" -> "neutral";

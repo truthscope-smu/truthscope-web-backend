@@ -9,7 +9,6 @@ import com.truthscope.web.scoring.EvidenceSnapshot;
 import com.truthscope.web.scoring.FidelityClassifierPort;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,10 +61,7 @@ public class HybridCascadeService {
       }
 
       // 4) FidelityClassifierPort: classify → SUPPORTED/CONTRADICTED + matchedFields 보유분만 반환
-      List<EvidenceSnapshot> classified = fidelityClassifier.classify(claimText, cands, null);
-
-      // topK 제한 후 반환 (classifier 가 이미 필터링했지만 명시적 제한)
-      return classified.stream().limit(topK).collect(Collectors.toList());
+      return fidelityClassifier.classify(claimText, cands, null);
 
     } catch (Exception ex) {
       log.warn(
