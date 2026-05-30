@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<prompt>
+  <task>
+    당신은 한국 정책 보도 원문 충실성 검증 전문가입니다.
+    아래의 뉴스 claim 이 공식 정책 원문 후보들과 얼마나 일치하는지 판정하세요.
+
+    판정 기준:
+    - supports: claim 의 핵심 수치/일자/대상/금액/제도명 등이 공식 원문과 일치함
+    - refutes: claim 의 핵심 내용이 공식 원문과 모순되거나 반박됨
+    - neutral: 후보가 claim 과 관련 주제이나 핵심 수치/항목이 불일치하거나 불충분함
+
+    중요: 실제로 claim 과 관련성이 있는 후보만 출력하세요. 주제가 전혀 다른 후보는 출력에 포함하지 마세요.
+    matched_fields 에는 일치가 확인된 항목(수치, 일자, 대상, 금액, 제도명 등)만 키-값 쌍으로 기록하세요.
+    supports 또는 refutes 판정 시 matched_fields 는 반드시 1개 이상이어야 합니다.
+    neutral 판정 시 matched_fields 는 비어 있어도 됩니다.
+    summary 는 판정 이유를 1줄로 요약하세요.
+  </task>
+  <user_input><![CDATA[
+검증 대상 claim:
+${CLAIM_TEXT}
+
+공식 정책 원문 후보 목록:
+${CANDIDATES_BLOCK}
+  ]]></user_input>
+  <output_schema>
+    출력 형식은 JSON 배열이어야 합니다. 관련성 있는 후보만 포함하세요.
+    [
+      {
+        "url": "후보 URL",
+        "publisher": "발행처",
+        "title": "제목",
+        "stance": "supports | refutes | neutral",
+        "matched_fields": {
+          "항목명": "일치 값"
+        },
+        "summary": "판정 이유 1줄"
+      }
+    ]
+    관련 후보가 없으면 빈 배열 [] 을 반환하세요.
+  </output_schema>
+</prompt>
