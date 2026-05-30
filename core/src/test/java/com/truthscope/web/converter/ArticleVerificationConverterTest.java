@@ -24,7 +24,8 @@ import org.junit.jupiter.api.Test;
  * <p>PLAN 테스트 전략 Unit 반영: claim 매핑(text/speaker/isQuotedClaim/verdict/disclaimer/verifiedAt),
  * evidence=[], sourceTransparency=null.
  *
- * <p>Converter는 Spring bean이 아닌 static 순수 변환 유틸리티이므로 Mockito 없이 직접 호출한다.
+ * <p>Converter는 Spring bean이 아닌 static 순수 변환 유틸리티이므로 Mockito 없이 직접 호출한다. buildResult는 tier/verdict를
+ * 파라미터로 받아 테스트별 의도(Tier 1/2, verdict 종류)를 명시한다 (CodeRabbit 리뷰 반영).
  */
 @DisplayName("ArticleVerificationConverter 단위 테스트")
 class ArticleVerificationConverterTest {
@@ -70,13 +71,19 @@ class ArticleVerificationConverterTest {
         .build();
   }
 
+  /** tier/verdict를 명시 파라미터로 받는다 — Tier 1/2 + verdict 종류별 의도를 테스트에서 직접 표현 (CodeRabbit 리뷰 반영). */
   private VerificationResult buildResult(
-      Claim claim, Short score, String disclaimer, LocalDateTime verifiedAt) {
+      Claim claim,
+      Short tier,
+      Verdict verdict,
+      Short score,
+      String disclaimer,
+      LocalDateTime verifiedAt) {
     return VerificationResult.builder()
         .id(UUID.randomUUID())
         .claim(claim)
-        .tier((short) 2)
-        .verdict(Verdict.SUPPORTED)
+        .tier(tier)
+        .verdict(verdict)
         .score(score)
         .reason("검증 근거")
         .disclaimer(disclaimer)
@@ -101,7 +108,8 @@ class ArticleVerificationConverterTest {
       LocalDateTime verifiedAt = LocalDateTime.of(2026, 5, 30, 10, 0, 0);
 
       Claim claim = buildClaim(claimId, "정부 발표 claim 텍스트", "홍길동", true, "원문 맥락", (short) 0);
-      VerificationResult result = buildResult(claim, (short) 75, null, verifiedAt);
+      VerificationResult result =
+          buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, verifiedAt);
       ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
 
       ArticleVerificationResponse response =
@@ -123,7 +131,8 @@ class ArticleVerificationConverterTest {
       UUID claimId = UUID.randomUUID();
 
       Claim claim = buildClaim(claimId, "claim", null, false, null, (short) 0);
-      VerificationResult result = buildResult(claim, (short) 75, null, LocalDateTime.now());
+      VerificationResult result =
+          buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, LocalDateTime.now());
       ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
 
       ArticleVerificationResponse response =
@@ -142,7 +151,8 @@ class ArticleVerificationConverterTest {
 
       Claim claim = buildClaim(claimId, "AI 분석 claim", null, false, null, (short) 0);
       VerificationResult result =
-          buildResult(claim, (short) 70, disclaimerText, LocalDateTime.now());
+          buildResult(
+              claim, (short) 2, Verdict.SUPPORTED, (short) 70, disclaimerText, LocalDateTime.now());
       ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
 
       ArticleVerificationResponse response =
@@ -159,13 +169,16 @@ class ArticleVerificationConverterTest {
       UUID claimId = UUID.randomUUID();
 
       Claim claim = buildClaim(claimId, "Tier 1 claim", null, false, null, (short) 0);
-      VerificationResult result = buildResult(claim, (short) 80, null, LocalDateTime.now());
+      // CodeRabbit 반영: 실제 Tier 1(tier=1) result로 검증 — 이름과 fixture 일치
+      VerificationResult result =
+          buildResult(claim, (short) 1, Verdict.SUPPORTED, (short) 80, null, LocalDateTime.now());
       ClaimItemSource source = new ClaimItemSource(claim, result, "FACT", null);
 
       ArticleVerificationResponse response =
           ArticleVerificationConverter.toResponse(article, session, "FACT", List.of(source));
 
       assertThat(response.getClaims().get(0).getDisclaimer()).isNull();
+      assertThat(response.getClaims().get(0).getTier()).isEqualTo((short) 1);
     }
 
     @Test
@@ -177,7 +190,8 @@ class ArticleVerificationConverterTest {
       LocalDateTime verifiedAt = LocalDateTime.of(2026, 5, 30, 9, 30, 0);
 
       Claim claim = buildClaim(claimId, "claim", null, false, null, (short) 0);
-      VerificationResult result = buildResult(claim, (short) 75, null, verifiedAt);
+      VerificationResult result =
+          buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, verifiedAt);
       ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
 
       ArticleVerificationResponse response =
@@ -194,7 +208,8 @@ class ArticleVerificationConverterTest {
       UUID claimId = UUID.randomUUID();
 
       Claim claim = buildClaim(claimId, "인용 아닌 claim", null, false, null, (short) 0);
-      VerificationResult result = buildResult(claim, (short) 75, null, LocalDateTime.now());
+      VerificationResult result =
+          buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, LocalDateTime.now());
       ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
 
       ArticleVerificationResponse response =
@@ -220,7 +235,8 @@ class ArticleVerificationConverterTest {
       UUID claimId = UUID.randomUUID();
 
       Claim claim = buildClaim(claimId, "claim", null, false, null, (short) 0);
-      VerificationResult result = buildResult(claim, (short) 75, null, LocalDateTime.now());
+      VerificationResult result =
+          buildResult(claim, (short) 2, Verdict.SUPPORTED, (short) 75, null, LocalDateTime.now());
       ClaimItemSource source = new ClaimItemSource(claim, result, "MOSTLY_FACT", null);
 
       ArticleVerificationResponse response =
@@ -346,8 +362,10 @@ class ArticleVerificationConverterTest {
       Claim claim0 = buildClaim(id0, "첫번째 claim", null, false, null, (short) 0);
       Claim claim1 = buildClaim(id1, "두번째 claim", null, false, null, (short) 1);
 
-      VerificationResult result0 = buildResult(claim0, (short) 80, null, LocalDateTime.now());
-      VerificationResult result1 = buildResult(claim1, (short) 65, null, LocalDateTime.now());
+      VerificationResult result0 =
+          buildResult(claim0, (short) 1, Verdict.SUPPORTED, (short) 80, null, LocalDateTime.now());
+      VerificationResult result1 =
+          buildResult(claim1, (short) 2, Verdict.SUPPORTED, (short) 65, null, LocalDateTime.now());
 
       List<ClaimItemSource> sources =
           List.of(
