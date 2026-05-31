@@ -35,7 +35,7 @@ public class SecurityConfig {
     CorsConfiguration config = new CorsConfiguration();
     config.setAllowedOrigins(
         List.of("https://truthscope-web-frontend.vercel.app", "http://localhost:3000"));
-    config.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
+    config.setAllowedMethods(List.of("GET", "OPTIONS"));
     config.setAllowedHeaders(List.of("*"));
     config.setMaxAge(3600L);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
