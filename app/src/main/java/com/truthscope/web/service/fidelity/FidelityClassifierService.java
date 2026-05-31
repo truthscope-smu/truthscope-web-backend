@@ -260,7 +260,6 @@ public class FidelityClassifierService implements FidelityClassifierPort {
   private GeminiRequest buildRequest(String prompt) {
     return new GeminiRequest(
         List.of(new GeminiRequest.Content(List.of(new GeminiRequest.Part(prompt)))),
-        new GeminiRequest.GenerationConfig(
-            new GeminiRequest.ResponseFormat("application/json", null), 0.0));
+        new GeminiRequest.GenerationConfig("application/json", 0.0));
   }
 }

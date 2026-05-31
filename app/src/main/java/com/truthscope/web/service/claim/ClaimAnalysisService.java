@@ -131,9 +131,7 @@ public class ClaimAnalysisService implements ClaimAnalysisPort {
   private GeminiRequest buildRequest(String prompt) {
     return new GeminiRequest(
         List.of(new GeminiRequest.Content(List.of(new GeminiRequest.Part(prompt)))),
-        new GeminiRequest.GenerationConfig(
-            new GeminiRequest.ResponseFormat(
-                "application/json", null), // schema 박제는 v2 트랙 (responseSchema enforcement)
-            0.0)); // deterministic for fact extraction
+        // schema 박제는 v2 트랙 (responseSchema enforcement). temperature 0.0 = deterministic.
+        new GeminiRequest.GenerationConfig("application/json", 0.0));
   }
 }
