@@ -197,6 +197,14 @@ public class AnalysisTransactionService {
     //       µ2.5 통합 테스트 단계에서 HybridCascadeService + Gemini 연동 후 구현.
   }
 
+  /** 세션 상태를 ANALYZING으로 전이 (비동기 분석 시작 시점). */
+  @Transactional
+  public void markAnalyzing(UUID sessionId) {
+    sessionRepository
+        .findById(sessionId)
+        .ifPresent(session -> session.updateStatus(SessionStatus.ANALYZING));
+  }
+
   /** 세션 상태를 FAILED로 전이 */
   @Transactional
   public void markFailed(UUID sessionId) {

@@ -58,6 +58,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -115,8 +116,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
       "truthscope.gemini.api-key=test-key",
       "spring.jpa.hibernate.ddl-auto=validate",
       "spring.flyway.enabled=true",
-      "spring.flyway.locations=classpath:db/migration"
+      "spring.flyway.locations=classpath:db/migration",
+      "spring.main.allow-bean-definition-overriding=true",
+      "truthscope.async.enabled=false"
     })
+@Import(com.truthscope.web.support.SyncAnalysisExecutorConfig.class)
 @DisplayName("BE #66 통합 테스트 2축 — 기능 적합성 + 신뢰성 (ISO/IEC 25010 정합)")
 class VerificationPipelineIntegrationTest {
 
@@ -247,7 +251,7 @@ class VerificationPipelineIntegrationTest {
               .andExpect(status().isCreated())
               .andExpect(jsonPath("$.sessionId").exists())
               .andExpect(jsonPath("$.articleId").exists())
-              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andExpect(jsonPath("$.status").value("EXTRACTING"))
               .andReturn();
 
       // Then: DB state 검증
@@ -343,7 +347,7 @@ class VerificationPipelineIntegrationTest {
                       .contentType(MediaType.APPLICATION_JSON)
                       .content(requestJson("https://example.com/news/tier2")))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andExpect(jsonPath("$.status").value("EXTRACTING"))
               .andReturn();
 
       // Then: DB tier2Count >= 1 + tier1Count = 0 + totalScore + Tier 2 disclaimer
@@ -417,7 +421,7 @@ class VerificationPipelineIntegrationTest {
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(requestJson("https://example.com/news/transparency")))
           .andExpect(status().isCreated())
-          .andExpect(jsonPath("$.status").value("COMPLETED"))
+          .andExpect(jsonPath("$.status").value("EXTRACTING"))
           .andReturn();
 
       // Aggregator 직접 호출: production이 받았을 ClaimVerificationSignal 1건 fixture 생성 후 cross-check
@@ -572,7 +576,7 @@ class VerificationPipelineIntegrationTest {
                       .contentType(MediaType.APPLICATION_JSON)
                       .content(requestJson("https://example.com/news/mixed")))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andExpect(jsonPath("$.status").value("EXTRACTING"))
               .andReturn();
 
       // Then: tier1=1 + tier3=1 + tier2=0 + totalScore present + VR 2건
@@ -647,7 +651,7 @@ class VerificationPipelineIntegrationTest {
                       .contentType(MediaType.APPLICATION_JSON)
                       .content(requestJson("https://unknown.com/news/tier3")))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andExpect(jsonPath("$.status").value("EXTRACTING"))
               .andReturn();
 
       // Then: tier3Count >= 1 + tier=3 + tier3Reason=INSUFFICIENT + score=null
@@ -699,7 +703,7 @@ class VerificationPipelineIntegrationTest {
                       .contentType(MediaType.APPLICATION_JSON)
                       .content(requestJson("https://example.com/news/empty")))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.status").value("COMPLETED"))
+              .andExpect(jsonPath("$.status").value("EXTRACTING"))
               .andReturn();
 
       // Then: totalScore=null + 모든 tier count=0 + VR 0건

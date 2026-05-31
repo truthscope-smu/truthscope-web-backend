@@ -31,6 +31,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -77,8 +78,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
       "truthscope.gemini.api-key=test-key",
       "spring.jpa.hibernate.ddl-auto=validate",
       "spring.flyway.enabled=true",
-      "spring.flyway.locations=classpath:db/migration"
+      "spring.flyway.locations=classpath:db/migration",
+      "spring.main.allow-bean-definition-overriding=true",
+      "truthscope.async.enabled=false"
     })
+@Import(com.truthscope.web.support.SyncAnalysisExecutorConfig.class)
 @DisplayName("Wave 2 Verification Cascade 통합 테스트 (µ2.5 T2-11)")
 class VerificationCascadeIntegrationTest {
 
@@ -175,7 +179,7 @@ class VerificationCascadeIntegrationTest {
 
     // Then: AnalysisSession COMPLETED 검증
     assertThat(response).isNotNull();
-    assertThat(response.getStatus()).isEqualTo(SessionStatus.COMPLETED.name());
+    assertThat(response.getStatus()).isEqualTo(SessionStatus.EXTRACTING.name());
 
     AnalysisSession session = sessionRepo.findById(response.getSessionId()).orElseThrow();
     assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
@@ -252,7 +256,7 @@ class VerificationCascadeIntegrationTest {
 
     // Then: session COMPLETED (Tier 3 도 정상 완료)
     assertThat(response).isNotNull();
-    assertThat(response.getStatus()).isEqualTo(SessionStatus.COMPLETED.name());
+    assertThat(response.getStatus()).isEqualTo(SessionStatus.EXTRACTING.name());
 
     AnalysisSession session = sessionRepo.findById(response.getSessionId()).orElseThrow();
     assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
