@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -25,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -124,6 +126,9 @@ class GeminiClientTest {
     assertThat(response.claims().get(0).claimText()).isEqualTo("정부는 GDP 성장률 3%를 발표했다.");
     assertThat(response.claims().get(0).claimStatusCandidate())
         .isEqualTo(ClaimStatusCandidate.SCORABLE);
+    // 회귀 가드: Gemini 요청은 application/json 으로 협상해야 한다 (XML 직렬화 회귀 방지)
+    verify(requestBodySpec).contentType(MediaType.APPLICATION_JSON);
+    verify(requestBodySpec).accept(MediaType.APPLICATION_JSON);
   }
 
   @Test
