@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -25,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -55,8 +57,7 @@ class GeminiClientTest {
   private static final GeminiRequest DUMMY_REQUEST =
       new GeminiRequest(
           List.of(new GeminiRequest.Content(List.of(new GeminiRequest.Part("테스트 기사")))),
-          new GeminiRequest.GenerationConfig(
-              new GeminiRequest.ResponseFormat("application/json", null), 0.0));
+          new GeminiRequest.GenerationConfig("application/json", 0.0));
 
   @BeforeEach
   void setUp() {
@@ -105,6 +106,8 @@ class GeminiClientTest {
     when(restClient.post()).thenReturn(requestBodyUriSpec);
     doReturn(requestBodySpec).when(requestBodyUriSpec).uri(anyString(), any(Object[].class));
     doReturn(requestBodySpec).when(requestBodySpec).header(anyString(), any(String[].class));
+    doReturn(requestBodySpec).when(requestBodySpec).contentType(any());
+    doReturn(requestBodySpec).when(requestBodySpec).accept(any());
     doReturn(requestBodySpec).when(requestBodySpec).body(any(Object.class));
     doReturn(responseSpec).when(requestBodySpec).retrieve();
     doReturn(response).when(responseSpec).body(GeminiGenerateContentResponse.class);
@@ -123,6 +126,9 @@ class GeminiClientTest {
     assertThat(response.claims().get(0).claimText()).isEqualTo("정부는 GDP 성장률 3%를 발표했다.");
     assertThat(response.claims().get(0).claimStatusCandidate())
         .isEqualTo(ClaimStatusCandidate.SCORABLE);
+    // 회귀 가드: Gemini 요청은 application/json 으로 협상해야 한다 (XML 직렬화 회귀 방지)
+    verify(requestBodySpec).contentType(MediaType.APPLICATION_JSON);
+    verify(requestBodySpec).accept(MediaType.APPLICATION_JSON);
   }
 
   @Test
@@ -176,6 +182,8 @@ class GeminiClientTest {
     when(restClient.post()).thenReturn(requestBodyUriSpec);
     doReturn(requestBodySpec).when(requestBodyUriSpec).uri(anyString(), any(Object[].class));
     doReturn(requestBodySpec).when(requestBodySpec).header(anyString(), any(String[].class));
+    doReturn(requestBodySpec).when(requestBodySpec).contentType(any());
+    doReturn(requestBodySpec).when(requestBodySpec).accept(any());
     doReturn(requestBodySpec).when(requestBodySpec).body(any(Object.class));
     doReturn(responseSpec).when(requestBodySpec).retrieve();
     doReturn(fallbackWrapper).when(responseSpec).body(GeminiGenerateContentResponse.class);
@@ -270,6 +278,8 @@ class GeminiClientTest {
     when(restClient.post()).thenReturn(requestBodyUriSpec);
     doReturn(requestBodySpec).when(requestBodyUriSpec).uri(anyString(), any(Object[].class));
     doReturn(requestBodySpec).when(requestBodySpec).header(anyString(), any(String[].class));
+    doReturn(requestBodySpec).when(requestBodySpec).contentType(any());
+    doReturn(requestBodySpec).when(requestBodySpec).accept(any());
     doReturn(requestBodySpec).when(requestBodySpec).body(any(Object.class));
     doReturn(responseSpec).when(requestBodySpec).retrieve();
     doReturn(fallbackWrapper).when(responseSpec).body(GeminiGenerateContentResponse.class);
