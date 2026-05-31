@@ -71,6 +71,10 @@ truthscope:
     # production에서 환경변수 override 필요 시 GEMINI_BASE_URL 또는 truthscope.gemini.base-url 직접 set.
     prompt-version: "v1.0.0"
     schema-version: "v1.0.0"
+  datasource:
+    # data.go.kr 정책뉴스 + 보도자료 공통 서비스 키. 로컬은 application-local.yml에 평문,
+    # 배포는 DATA_GO_KR_KEY 환경변수로 주입(application-prod.yml은 폴백 없음).
+    data-go-kr-key: ${DATA_GO_KR_KEY:}
   cascade:
     source-count-threshold: 1
     tier1-hit-required: true
