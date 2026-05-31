@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -152,6 +153,10 @@ public class FidelityClassifierService implements FidelityClassifierPort {
             .post()
             .uri("/v1beta/models/{model}:generateContent", PRIMARY_MODEL)
             .header("x-goog-api-key", effectiveKey)
+            // jackson-dataformat-xml(data.go.kr용)이 classpath에 있어 contentType 미지정 시 요청이 XML로
+            // 직렬화됨 → Gemini 400. JSON 강제 (GeminiClient와 동일 처리).
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
             .body(request)
             .retrieve()
             .body(GeminiGenerateContentResponse.class);
