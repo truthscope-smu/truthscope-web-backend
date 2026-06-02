@@ -33,7 +33,7 @@ public class MemberService {
 
   private Member saveNew(UUID id, String email) {
     try {
-      return memberRepository.save(
+      return memberRepository.saveAndFlush(
           Member.builder()
               .id(id)
               .email(email)

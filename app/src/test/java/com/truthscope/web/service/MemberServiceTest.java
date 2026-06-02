@@ -34,12 +34,12 @@ class MemberServiceTest {
     Member saved =
         Member.builder().id(id).email("a@b.com").nickname("a").role(MemberRole.USER).build();
     given(memberRepository.findById(id)).willReturn(Optional.empty());
-    given(memberRepository.save(any())).willReturn(saved);
+    given(memberRepository.saveAndFlush(any())).willReturn(saved);
 
     Member result = memberService.upsert(id, "a@b.com");
 
     assertThat(result.getId()).isEqualTo(id);
-    verify(memberRepository, times(1)).save(any());
+    verify(memberRepository, times(1)).saveAndFlush(any());
   }
 
   @Test
@@ -53,7 +53,7 @@ class MemberServiceTest {
     Member result = memberService.upsert(id, "a@b.com");
 
     assertThat(result).isSameAs(existing);
-    verify(memberRepository, times(0)).save(any());
+    verify(memberRepository, times(0)).saveAndFlush(any());
   }
 
   @Test
@@ -68,7 +68,7 @@ class MemberServiceTest {
             .role(MemberRole.USER)
             .build();
     given(memberRepository.findById(id)).willReturn(Optional.empty());
-    given(memberRepository.save(any())).willReturn(saved);
+    given(memberRepository.saveAndFlush(any())).willReturn(saved);
 
     Member result = memberService.upsert(id, "testuser@example.com");
 
@@ -84,7 +84,8 @@ class MemberServiceTest {
     given(memberRepository.findById(id))
         .willReturn(Optional.empty()) // 1차 조회 없음
         .willReturn(Optional.of(existing)); // 충돌 후 재조회
-    given(memberRepository.save(any())).willThrow(new DataIntegrityViolationException("dup"));
+    given(memberRepository.saveAndFlush(any()))
+        .willThrow(new DataIntegrityViolationException("dup"));
 
     Member result = memberService.upsert(id, "a@b.com");
 

@@ -4,6 +4,7 @@ import com.truthscope.web.dto.AuthenticatedUser;
 import com.truthscope.web.dto.request.AnalysisRequest;
 import com.truthscope.web.dto.response.AnalysisResponse;
 import com.truthscope.web.dto.response.AnalysisSessionHistoryResponse;
+import com.truthscope.web.exception.UnauthorizedException;
 import com.truthscope.web.service.AnalysisHistoryService;
 import com.truthscope.web.service.AnalysisService;
 import jakarta.validation.Valid;
@@ -46,11 +47,7 @@ public class NewsController {
       @Valid @RequestBody AnalysisRequest request,
       @RequestHeader(name = "X-User-Gemini-Key", required = false) String userApiKey,
       @AuthenticationPrincipal Jwt jwt) {
-    AuthenticatedUser user =
-        (jwt == null)
-            ? null
-            : new AuthenticatedUser(
-                UUID.fromString(jwt.getSubject()), jwt.getClaimAsString("email"));
+    AuthenticatedUser user = toUser(jwt);
     AnalysisResponse response = analysisService.analyze(request, userApiKey, user);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
@@ -63,6 +60,33 @@ public class NewsController {
    */
   @GetMapping
   public List<AnalysisSessionHistoryResponse> getMySessions(@AuthenticationPrincipal Jwt jwt) {
-    return analysisHistoryService.findMySessions(UUID.fromString(jwt.getSubject()));
+    return analysisHistoryService.findMySessions(requireUserId(jwt));
+  }
+
+  /**
+   * JWT subject를 UUID로 파싱한다. sub가 UUID 형식이 아니면 UnauthorizedException(401)을 던진다.
+   *
+   * @param jwt 인증 JWT (null 불가)
+   * @return 파싱된 UUID
+   */
+  private static UUID requireUserId(Jwt jwt) {
+    try {
+      return UUID.fromString(jwt.getSubject());
+    } catch (IllegalArgumentException e) {
+      throw new UnauthorizedException("유효하지 않은 토큰 subject입니다");
+    }
+  }
+
+  /**
+   * JWT가 있으면 AuthenticatedUser를 생성하고, null이면 null을 반환한다.
+   *
+   * @param jwt 인증 JWT (익명이면 null)
+   * @return AuthenticatedUser 또는 null
+   */
+  private static AuthenticatedUser toUser(Jwt jwt) {
+    if (jwt == null) {
+      return null;
+    }
+    return new AuthenticatedUser(requireUserId(jwt), jwt.getClaimAsString("email"));
   }
 }

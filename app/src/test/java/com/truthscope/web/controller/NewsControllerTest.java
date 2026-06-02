@@ -162,4 +162,12 @@ class NewsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].sessionId").value(sessionId.toString()));
   }
+
+  @Test
+  @DisplayName("GET /api/v1/analysis-sessions — 비-UUID subject JWT → 401 반환")
+  void getMySessions_nonUuidSubject_returns401() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/analysis-sessions").with(jwt().jwt(j -> j.subject("not-a-uuid"))))
+        .andExpect(status().isUnauthorized());
+  }
 }
