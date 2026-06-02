@@ -723,25 +723,26 @@ class VerificationPipelineIntegrationTest {
     }
 
     /**
-     * R-4 RuntimeException → markFailed 전이 + 500 응답.
+     * R-4 추출 RuntimeException → 세션 미생성 + 500 응답 (Phase 71 B1 정합).
      *
-     * <p>contentExtractService throw RuntimeException → AnalysisService catch → markFailed →
-     * suppressed 보존 후 rethrow → GlobalExceptionHandler.handleException → 500 응답.
+     * <p>Phase 71 B1 변경 후 동작: contentExtractService.extract throw RuntimeException →
+     * AnalysisService가 세션 생성 전 예외 전파 → 세션 미생성 → GlobalExceptionHandler.handleException → 500 응답.
      *
-     * <p>rev.2 H-2 + L-1 amend: 500 응답 body에 sessionId 부재 → sessionRepo.findAll() filter로 session
-     * FAILED 검증. Mockito.verify(transactionService).markFailed는 production bean이라 직접 verify 불가.
+     * <p>이전(B1 전) 동작과 차이: B1 전에는 세션이 PENDING으로 생성됐다가 catch 블록에서 FAILED로 전이(delta=1). B1 후에는 추출 실패 시
+     * 세션 자체를 만들지 않으므로 delta=0.
+     *
+     * <p>rev.2 H-2 + L-1 amend 유지: 500 응답 body에 sessionId 부재 → sessionRepo.findAll() delta로 검증.
      */
     @Test
-    @DisplayName("R-4 RuntimeException → markFailed 전이 + 500 응답")
-    void runtimeExceptionInContentExtract_markFailedAnd500Response() throws Exception {
+    @DisplayName("R-4 추출 RuntimeException → 세션 미생성(delta=0) + 500 응답 (Phase 71 B1)")
+    void runtimeExceptionInContentExtract_noSessionCreatedAnd500Response() throws Exception {
       // Given: contentExtract throw RuntimeException
       when(contentExtractService.extract(anyString()))
           .thenThrow(new RuntimeException("외부 사이트 응답 실패"));
 
       // CodeRabbit fix A2: delta 기반 검증 (global state 의존 회피).
       // @AfterEach cleanup으로 매 시나리오 시작 시 0 보장이나 견고성 향상.
-      long beforeFailed =
-          sessionRepo.findAll().stream().filter(s -> s.getStatus() == SessionStatus.FAILED).count();
+      long beforeTotal = sessionRepo.count();
 
       // When + Then: HTTP 500 + ApiErrorResponse JSON fragment
       mockMvc
@@ -754,10 +755,9 @@ class VerificationPipelineIntegrationTest {
           .andExpect(jsonPath("$.statusCode").value(500))
           .andExpect(jsonPath("$.message").value("서버 내부 오류"));
 
-      // DB: FAILED 세션 count delta = 1 (response body에 sessionId 부재 → delta 검증)
-      long afterFailed =
-          sessionRepo.findAll().stream().filter(s -> s.getStatus() == SessionStatus.FAILED).count();
-      assertThat(afterFailed - beforeFailed).isEqualTo(1L);
+      // Phase 71 B1: 추출 실패 시 세션 미생성 → delta = 0 (FAILED 세션조차 생기지 않음)
+      long afterTotal = sessionRepo.count();
+      assertThat(afterTotal - beforeTotal).isEqualTo(0L);
     }
 
     /**
