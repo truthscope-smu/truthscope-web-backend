@@ -26,13 +26,17 @@ public class AnalysisService {
    * <p>단계:
    *
    * <ol>
-   *   <li>세션 생성 (트랜잭션, 인증 시 member 바인딩)
-   *   <li>기사 본문 추출 (트랜잭션 밖, 외부 HTTP Jsoup)
+   *   <li>기사 본문 추출 (트랜잭션 밖, 외부 HTTP Jsoup) — B1: 세션 생성 전 선행 수행
+   *   <li>세션 생성 (트랜잭션, 인증 시 member 바인딩) — 추출 성공 시에만 실행
    *   <li>Article 저장 + 상태 EXTRACTING 전이 (트랜잭션, 즉시 커밋)
    *   <li>EXTRACTING 스냅샷 DTO 반환 + 비동기 프로세서에 claims 이후 위임
    * </ol>
    *
-   * <p>동기 구간에서 RuntimeException 발생 시 세션을 FAILED로 전이한다. markFailed 자체 실패 시 원본 예외에 suppressed로 추가.
+   * <p>추출 실패(예: korea.kr 타임아웃) 시 세션/member를 생성하지 않는다. 이로써 FE 프록시 재시도(MAX_ATTEMPTS=3)가 중복 FAILED 세션을
+   * 남기지 않는다(Phase 71 B1).
+   *
+   * <p>persistArticleAndUpdateStatus/asyncProcessor 단계 RuntimeException 발생 시 세션을 FAILED로 전이한다.
+   * markFailed 자체 실패 시 원본 예외에 suppressed로 추가.
    *
    * @param request 분석 요청 (URL)
    * @param userApiKey BYOK 사용자 Gemini API 키 (null이면 서버 기본 키)
@@ -40,10 +44,12 @@ public class AnalysisService {
    */
   public AnalysisResponse analyze(
       AnalysisRequest request, @Nullable String userApiKey, @Nullable AuthenticatedUser user) {
+    // B1: 추출을 세션 생성보다 먼저 수행. 실패(예: korea.kr 타임아웃) 시 세션/member 미생성 →
+    //     프록시 재시도가 중복 FAILED 세션을 남기지 않음(Phase 71).
+    ExtractedArticle extracted = contentExtractService.extract(request.url());
     Member member = (user == null) ? null : memberService.upsert(user.id(), user.email());
     UUID sessionId = transactionService.createPendingSession(member);
     try {
-      ExtractedArticle extracted = contentExtractService.extract(request.url());
       // persistArticleAndUpdateStatus는 독립 @Transactional이므로 메서드 반환 시 즉시 커밋.
       // 반환 AnalysisResponse는 AnalysisConverter.toResponse(session, article)로 빌드된 EXTRACTING 스냅샷
       // DTO.
