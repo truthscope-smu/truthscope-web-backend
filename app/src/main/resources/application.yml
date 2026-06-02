@@ -64,6 +64,9 @@ resilience4j:
           - org.springframework.web.client.HttpClientErrorException.Forbidden
 
 truthscope:
+  supabase:
+    jwk-set-uri: ${SUPABASE_JWK_SET_URI:https://cbomiwbngcajjmslflfc.supabase.co/auth/v1/.well-known/jwks.json}
+    issuer: ${SUPABASE_ISSUER:https://cbomiwbngcajjmslflfc.supabase.co/auth/v1}
   gemini:
     api-key: ${GEMINI_API_KEY:}
     # base-url default는 RestClientConfig의 @Value에서 정의 (BE #92 wiremock-spring-boot customizer가

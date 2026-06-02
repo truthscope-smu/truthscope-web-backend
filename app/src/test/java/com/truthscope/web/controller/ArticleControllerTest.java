@@ -13,6 +13,7 @@ import com.truthscope.web.dto.response.ArticleResponse;
 import com.truthscope.web.exception.ConflictException;
 import com.truthscope.web.exception.GlobalExceptionHandler;
 import com.truthscope.web.exception.NotFoundException;
+import com.truthscope.web.security.SupabaseAuthenticationEntryPoint;
 import com.truthscope.web.service.ArticleService;
 import com.truthscope.web.service.ArticleVerificationService;
 import java.time.LocalDateTime;
@@ -23,13 +24,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** ArticleController 단위 테스트 (WebMvcTest + Service mock) */
 @WebMvcTest(controllers = ArticleController.class)
-@Import({GlobalExceptionHandler.class, SecurityConfig.class})
+@Import({
+  GlobalExceptionHandler.class,
+  SecurityConfig.class,
+  SupabaseAuthenticationEntryPoint.class
+})
 @ActiveProfiles("test")
 class ArticleControllerTest {
 
@@ -39,6 +45,9 @@ class ArticleControllerTest {
 
   // findVerification 엔드포인트 추가로 컨트롤러 의존 주입됨 — WebMvcTest 컨텍스트 로드용 mock
   @MockitoBean private ArticleVerificationService articleVerificationService;
+
+  // SecurityConfig에 oauth2ResourceServer + JwtDecoder bean이 필요 — WebMvcTest 컨텍스트 로드용 mock
+  @MockitoBean private JwtDecoder jwtDecoder;
 
   @Test
   @DisplayName("GET /api/v1/articles/{id} — 200 + ArticleResponse 반환")

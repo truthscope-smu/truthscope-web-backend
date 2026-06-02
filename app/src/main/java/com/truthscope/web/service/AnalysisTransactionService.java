@@ -7,6 +7,7 @@ import com.truthscope.web.dto.response.ExtractedArticle;
 import com.truthscope.web.entity.AnalysisSession;
 import com.truthscope.web.entity.Article;
 import com.truthscope.web.entity.Claim;
+import com.truthscope.web.entity.Member;
 import com.truthscope.web.entity.VerificationResult;
 import com.truthscope.web.entity.VerifySource;
 import com.truthscope.web.entity.enums.ClaimImportance;
@@ -47,11 +48,16 @@ public class AnalysisTransactionService {
   private final VerificationResultRepository verificationResultRepository;
   private final VerifySourceRepository verifySourceRepository;
 
-  /** 세션 생성 후 ID 반환 */
+  /**
+   * 세션 생성 후 ID 반환.
+   *
+   * @param member 인증 사용자(null이면 익명 — member_id NULL)
+   */
   @Transactional
-  public UUID createPendingSession() {
+  public UUID createPendingSession(Member member) {
     AnalysisSession session =
         AnalysisSession.builder()
+            .member(member)
             .status(SessionStatus.PENDING)
             .requestedAt(LocalDateTime.now())
             .build();

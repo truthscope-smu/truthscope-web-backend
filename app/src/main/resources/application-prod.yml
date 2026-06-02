@@ -19,6 +19,9 @@ spring:
       password: ${ADMIN_PASSWORD}
 
 truthscope:
+  supabase:
+    jwk-set-uri: ${SUPABASE_JWK_SET_URI}
+    issuer: ${SUPABASE_ISSUER}
   gemini:
     api-key: ${GEMINI_API_KEY}
   datasource:
