@@ -26,3 +26,6 @@ truthscope:
     api-key: ${GEMINI_API_KEY}
   datasource:
     data-go-kr-key: ${DATA_GO_KR_KEY}
+    # 네이버는 보조 출처라 미주입 시에도 부팅 허용(빈 값 폴백). 키 주입 시 활성화.
+    naver-client-id: ${NAVER_CLIENT_ID:}
+    naver-client-secret: ${NAVER_CLIENT_SECRET:}
