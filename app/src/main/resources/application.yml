@@ -78,6 +78,12 @@ truthscope:
     # data.go.kr 정책뉴스 + 보도자료 공통 서비스 키. 로컬은 application-local.yml에 평문,
     # 배포는 DATA_GO_KR_KEY 환경변수로 주입(application-prod.yml은 폴백 없음).
     data-go-kr-key: ${DATA_GO_KR_KEY:}
+    # 네이버 뉴스 검색 API (Phase 72 Tier 1 보조 출처). Client ID와 Secret은 요청 헤더
+    # X-Naver-Client-Id, X-Naver-Client-Secret로 전달. 로컬은 application-local.yml 평문,
+    # 배포는 NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET 환경변수로 주입. 보조 출처라 기본값은 빈 값(선택).
+    naver-client-id: ${NAVER_CLIENT_ID:}
+    naver-client-secret: ${NAVER_CLIENT_SECRET:}
+    naver-base-url: ${NAVER_BASE_URL:https://openapi.naver.com}
   cascade:
     source-count-threshold: 1
     tier1-hit-required: true

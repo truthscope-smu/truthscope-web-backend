@@ -41,7 +41,8 @@ public class FidelityClassifierStubService implements FidelityClassifierPort {
                 candidate.publisher(),
                 candidate.title(),
                 "SUPPORTED",
-                Map.of("제도명", candidate.title() != null ? candidate.title() : "정책")));
+                Map.of("제도명", candidate.title() != null ? candidate.title() : "정책"),
+                java.util.Collections.emptyMap())); // mismatchedFields 기본값: 스텁은 불일치 없음
       }
       // 관련성 없는 후보는 제외 — NEUTRAL/0-match 반환 금지 (codex Round 2 조건 1 정합)
     }

@@ -6,4 +6,5 @@ public record EvidenceSnapshot(
     String publisher,
     String title,
     String stance,
-    java.util.Map<String, String> matchedFields) {}
+    java.util.Map<String, String> matchedFields,
+    java.util.Map<String, String> mismatchedFields) {}

@@ -4,12 +4,11 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Tier 2c — 정책 field 5종 (수치/일자/대상/금액/제도명) 일치율 × 100 + critical-field cap 50 + claim split 정합.
+ * Tier 2c — 정책 field 5종 (수치/일자/대상/금액/제도명) 일치율 × 100 + critical-field 조건부 cap 50.
  *
- * <p>v1.x skeleton: source 가 sourceCountThreshold 미만이면 Optional.empty(), 이상이면 matchedFields 의 평균
- * 일치율을 0..100 로 환산. critical field 1개 불일치 시 cap=criticalFieldCapPercent 적용.
- *
- * <p>실제 정책 field 정규화 + claim split UUID 결합 알고리즘은 v2 트랙 (ADR-021).
+ * <p>v2: critical field 불일치 감지 시만 cap=criticalFieldCapPercent 적용(ADR-021 조건부 cap). source 가
+ * sourceCountThreshold 미만이면 Optional.empty(), 이상이면 matchedFields 의 평균 일치율을 0..100 로 환산. mismatch
+ * 없으면 ratio 그대로 반환(최대 100). mismatch 있으면 criticalFieldCapPercent(50) 상한.
  */
 public class PolicyEvidenceScorer implements ClaimScoreCalculator {
 
@@ -31,9 +30,16 @@ public class PolicyEvidenceScorer implements ClaimScoreCalculator {
       }
     }
     int ratio = Math.min(100, (matchedCount * 100) / Math.max(1, totalFields * sources.size()));
-    // v1.x skeleton: 모든 ratio에 cap 무조건 적용. v2 트랙(ADR-021)에서 critical-field mismatch detection 후 조건부
-    // 적용으로 전환.
-    int capped = Math.min(ratio, policy.criticalFieldCapPercent());
+    // v2: critical-field mismatch 감지 시만 cap 적용 (ADR-021 조건부 cap 구현).
+    // mismatch 없으면 ratio 그대로 반환(최대 100). mismatch 있으면 criticalFieldCapPercent(50) 상한.
+    boolean hasCriticalMismatch =
+        sources.stream()
+            .anyMatch(
+                s ->
+                    s.mismatchedFields() != null
+                        && policy.claimSplitFields().stream()
+                            .anyMatch(f -> s.mismatchedFields().containsKey(f)));
+    int capped = hasCriticalMismatch ? Math.min(ratio, policy.criticalFieldCapPercent()) : ratio;
     return Optional.of(Math.max(0, Math.min(100, capped)));
   }
 }

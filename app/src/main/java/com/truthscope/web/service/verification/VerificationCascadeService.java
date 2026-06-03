@@ -1,6 +1,5 @@
 package com.truthscope.web.service.verification;
 
-import com.truthscope.web.adapter.factcheck.GoogleFcAdapter;
 import com.truthscope.web.claim.validation.HeuristicValidator;
 import com.truthscope.web.claim.validation.Tier3ReasonValidator;
 import com.truthscope.web.repository.FactcheckCacheRepository;
@@ -33,7 +32,6 @@ import org.springframework.stereotype.Service;
 public class VerificationCascadeService {
 
   private final FactcheckCacheRepository factcheckCacheRepository;
-  private final GoogleFcAdapter googleFcAdapter;
   private final HybridCascadeService hybridCascade;
   private final UrlValidator urlValidator;
   private final ClaimScoreCalculator policyScorer;
@@ -59,7 +57,6 @@ public class VerificationCascadeService {
    *
    * <ol>
    *   <li>Tier 1: factcheck_cache 전문 검색 -> 히트 시 SCORABLE (score=100, EXPLICIT), evidence=빈 리스트
-   *   <li>Tier 1': Google FC API stub (v1.x 항상 empty, bean 보존 목적)
    *   <li>Tier 2: HybridCascadeService retrieve -> URL 검증 -> PolicyEvidenceScorer /
    *       StanceRatioScorer. 성공 시 ClaimCascadeResult(signal, validSnapshots) 반환.
    *   <li>Tier 3: Tier3ReasonValidator -> 비판정 신호, evidence=빈 리스트
@@ -84,9 +81,6 @@ public class VerificationCascadeService {
               SourceTransparency.EXPLICIT),
           List.of());
     }
-
-    // Tier 1': Google FC API 진입점 — v1.x 미라우팅 (bean은 field 주입으로 보존, 호출 X).
-    //   ADR-018 §결정 5 활성화 시 이 지점에서 googleFcAdapter.findMatching(draft.claimText()) 호출 + rating 매핑.
 
     // Tier 2: HybridCascadeService -> URL 검증 -> 점수 산출
     List<EvidenceSnapshot> snapshots = hybridCascade.retrieve(draft.claimText(), 5);

@@ -219,7 +219,8 @@ public class FidelityClassifierService implements FidelityClassifierPort {
    * {@link FidelityItem} 을 {@link EvidenceSnapshot} 으로 변환한다.
    *
    * <p>stance 소문자 (Gemini 출력) → 대문자 (EvidenceSnapshot 규약): supports → SUPPORTED, refutes →
-   * CONTRADICTED, neutral → NEUTRAL. summary 는 EvidenceSnapshot 5필드 불변 계약에 따라 폐기 (converter 에서 도출).
+   * CONTRADICTED, neutral → NEUTRAL. summary 는 EvidenceSnapshot 필드 불변 계약에 따라 폐기 (converter 에서 도출).
+   * mismatchedFields 는 Gemini 응답에서 null 이면 emptyMap() 으로 대체 (레거시 응답 호환).
    */
   private EvidenceSnapshot toSnapshot(FidelityItem item) {
     String normalized = item.stance() != null ? item.stance().trim().toLowerCase(Locale.ROOT) : "";
@@ -231,7 +232,10 @@ public class FidelityClassifierService implements FidelityClassifierPort {
         };
     Map<String, String> matchedFields =
         item.matchedFields() != null ? item.matchedFields() : Collections.emptyMap();
-    return new EvidenceSnapshot(item.url(), item.publisher(), item.title(), stance, matchedFields);
+    Map<String, String> mismatchedFields =
+        item.mismatchedFields() != null ? item.mismatchedFields() : Collections.emptyMap();
+    return new EvidenceSnapshot(
+        item.url(), item.publisher(), item.title(), stance, matchedFields, mismatchedFields);
   }
 
   /**

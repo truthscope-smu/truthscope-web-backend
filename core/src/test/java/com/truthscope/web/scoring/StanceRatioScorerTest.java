@@ -29,8 +29,8 @@ class StanceRatioScorerTest {
   void calculate_returnsEmpty_whenSourcesBelowThreshold() {
     List<EvidenceSnapshot> twoSources =
         List.of(
-            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null),
-            new EvidenceSnapshot("http://b.com", "B", "B제목", "SUPPORTED", null));
+            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null, null),
+            new EvidenceSnapshot("http://b.com", "B", "B제목", "SUPPORTED", null, null));
     Optional<Integer> result = scorer.calculate(CLAIM, twoSources, POLICY);
     assertThat(result).isEmpty();
   }
@@ -40,9 +40,9 @@ class StanceRatioScorerTest {
   void calculate_returnsEmpty_whenAllUnrelated() {
     List<EvidenceSnapshot> sources =
         List.of(
-            new EvidenceSnapshot("http://a.com", "A", "A제목", "UNRELATED", null),
-            new EvidenceSnapshot("http://b.com", "B", "B제목", "UNRELATED", null),
-            new EvidenceSnapshot("http://c.com", "C", "C제목", "UNRELATED", null));
+            new EvidenceSnapshot("http://a.com", "A", "A제목", "UNRELATED", null, null),
+            new EvidenceSnapshot("http://b.com", "B", "B제목", "UNRELATED", null, null),
+            new EvidenceSnapshot("http://c.com", "C", "C제목", "UNRELATED", null, null));
     Optional<Integer> result = scorer.calculate(CLAIM, sources, POLICY);
     assertThat(result).isEmpty();
   }
@@ -52,9 +52,9 @@ class StanceRatioScorerTest {
   void calculate_returns100_whenAllSupported() {
     List<EvidenceSnapshot> sources =
         List.of(
-            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null),
-            new EvidenceSnapshot("http://b.com", "B", "B제목", "SUPPORTED", null),
-            new EvidenceSnapshot("http://c.com", "C", "C제목", "SUPPORTED", null));
+            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null, null),
+            new EvidenceSnapshot("http://b.com", "B", "B제목", "SUPPORTED", null, null),
+            new EvidenceSnapshot("http://c.com", "C", "C제목", "SUPPORTED", null, null));
     Optional<Integer> result = scorer.calculate(CLAIM, sources, POLICY);
     assertThat(result).isPresent();
     assertThat(result.get()).isEqualTo(100);
@@ -65,9 +65,9 @@ class StanceRatioScorerTest {
   void calculate_returns0_whenAllContradicted() {
     List<EvidenceSnapshot> sources =
         List.of(
-            new EvidenceSnapshot("http://a.com", "A", "A제목", "CONTRADICTED", null),
-            new EvidenceSnapshot("http://b.com", "B", "B제목", "CONTRADICTED", null),
-            new EvidenceSnapshot("http://c.com", "C", "C제목", "CONTRADICTED", null));
+            new EvidenceSnapshot("http://a.com", "A", "A제목", "CONTRADICTED", null, null),
+            new EvidenceSnapshot("http://b.com", "B", "B제목", "CONTRADICTED", null, null),
+            new EvidenceSnapshot("http://c.com", "C", "C제목", "CONTRADICTED", null, null));
     Optional<Integer> result = scorer.calculate(CLAIM, sources, POLICY);
     assertThat(result).isPresent();
     // ratio = 0/3 = 0, contradicted > supported → min(30, 0) = 0
@@ -79,9 +79,9 @@ class StanceRatioScorerTest {
   void calculate_appliesConflictCap_whenContradictedExceedsSupported() {
     List<EvidenceSnapshot> sources =
         List.of(
-            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null),
-            new EvidenceSnapshot("http://b.com", "B", "B제목", "CONTRADICTED", null),
-            new EvidenceSnapshot("http://c.com", "C", "C제목", "CONTRADICTED", null));
+            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null, null),
+            new EvidenceSnapshot("http://b.com", "B", "B제목", "CONTRADICTED", null, null),
+            new EvidenceSnapshot("http://c.com", "C", "C제목", "CONTRADICTED", null, null));
     Optional<Integer> result = scorer.calculate(CLAIM, sources, POLICY);
     assertThat(result).isPresent();
     // ratio = 1/3 = 33, contradicted(2) > supported(1) → min(30, 33) = 30
@@ -94,9 +94,9 @@ class StanceRatioScorerTest {
   void calculate_excludesUnrelatedFromDenominator() {
     List<EvidenceSnapshot> sources =
         List.of(
-            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null),
-            new EvidenceSnapshot("http://b.com", "B", "B제목", "SUPPORTED", null),
-            new EvidenceSnapshot("http://c.com", "C", "C제목", "UNRELATED", null));
+            new EvidenceSnapshot("http://a.com", "A", "A제목", "SUPPORTED", null, null),
+            new EvidenceSnapshot("http://b.com", "B", "B제목", "SUPPORTED", null, null),
+            new EvidenceSnapshot("http://c.com", "C", "C제목", "UNRELATED", null, null));
     Optional<Integer> result = scorer.calculate(CLAIM, sources, POLICY);
     assertThat(result).isPresent();
     // denominator = 2 (SUPPORTED 2 + CONTRADICTED 0), ratio = 2/2 = 100

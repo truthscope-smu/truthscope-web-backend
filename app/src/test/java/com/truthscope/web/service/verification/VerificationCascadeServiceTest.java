@@ -12,7 +12,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.truthscope.web.adapter.factcheck.GoogleFcAdapter;
 import com.truthscope.web.claim.validation.HeuristicValidator;
 import com.truthscope.web.claim.validation.Tier3ReasonValidator;
 import com.truthscope.web.entity.FactcheckCache;
@@ -50,7 +49,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class VerificationCascadeServiceTest {
 
   @Mock private FactcheckCacheRepository factcheckCacheRepository;
-  @Mock private GoogleFcAdapter googleFcAdapter;
   @Mock private HybridCascadeService hybridCascade;
   @Mock private UrlValidator urlValidator;
   @Mock private ClaimScoreCalculator policyScorer;
@@ -67,7 +65,6 @@ class VerificationCascadeServiceTest {
     service =
         new VerificationCascadeService(
             factcheckCacheRepository,
-            googleFcAdapter,
             hybridCascade,
             urlValidator,
             policyScorer,
@@ -87,7 +84,13 @@ class VerificationCascadeServiceTest {
   }
 
   private EvidenceSnapshot buildSnapshot(String url) {
-    return new EvidenceSnapshot(url, "publisher", "title", "SUPPORTED", Map.of());
+    return new EvidenceSnapshot(
+        url,
+        "publisher",
+        "title",
+        "SUPPORTED",
+        java.util.Map.of(),
+        java.util.Collections.emptyMap());
   }
 
   // -----------------------------------------------------------------------------------------
@@ -131,11 +134,29 @@ class VerificationCascadeServiceTest {
   void cascade_routesNoCacheToTier2() {
     ClaimDraft draft = buildDraft("캐시 없는 claim");
     EvidenceSnapshot snap1 =
-        new EvidenceSnapshot("https://example.com/a", "pub-a", "title-a", "SUPPORTED", Map.of());
+        new EvidenceSnapshot(
+            "https://example.com/a",
+            "pub-a",
+            "title-a",
+            "SUPPORTED",
+            Map.of(),
+            java.util.Collections.emptyMap());
     EvidenceSnapshot snap2 =
-        new EvidenceSnapshot("https://example.com/b", "pub-b", "title-b", "SUPPORTED", Map.of());
+        new EvidenceSnapshot(
+            "https://example.com/b",
+            "pub-b",
+            "title-b",
+            "SUPPORTED",
+            Map.of(),
+            java.util.Collections.emptyMap());
     EvidenceSnapshot snap3 =
-        new EvidenceSnapshot("https://example.com/c", "pub-c", "title-c", "SUPPORTED", Map.of());
+        new EvidenceSnapshot(
+            "https://example.com/c",
+            "pub-c",
+            "title-c",
+            "SUPPORTED",
+            Map.of(),
+            java.util.Collections.emptyMap());
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
     when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of(snap1, snap2, snap3));
     when(urlValidator.validate(anyString())).thenReturn(true);
