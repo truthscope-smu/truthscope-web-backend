@@ -194,4 +194,41 @@ class PolicyEvidenceScorerTest {
     // hasCriticalMismatch=false -> cap 해제 -> ratio=100 -> score=100
     assertThat(result.get()).isEqualTo(100);
   }
+
+  // (9) stance 정합: CONTRADICTED 출처의 matchedFields 는 양성 점수에 합산되지 않는다 -> 순수 반박 score = 0
+  @Test
+  void calculate_excludesContradictedMatchedFields_scoresZero() {
+    Map<String, String> matched = Map.of("일자", "2025", "대상", "GDP");
+    Map<String, String> mismatched = Map.of("수치", "2.8%");
+    List<EvidenceSnapshot> sources =
+        List.of(
+            new EvidenceSnapshot("http://a.com", "A", "A제목", "CONTRADICTED", matched, mismatched),
+            new EvidenceSnapshot("http://b.com", "B", "B제목", "CONTRADICTED", matched, mismatched),
+            new EvidenceSnapshot("http://c.com", "C", "C제목", "CONTRADICTED", matched, mismatched));
+    Optional<Integer> result = scorer.calculate(CLAIM, sources, POLICY);
+    assertThat(result).isPresent();
+    // 모든 출처가 CONTRADICTED -> matchedCount 0 -> ratio 0 -> 수치 mismatch cap min(0,50)=0
+    assertThat(result.get()).isEqualTo(0);
+  }
+
+  // (10) 혼합 stance: SUPPORTED matched 만 합산, CONTRADICTED 는 분모만 차지해 점수 희석
+  @Test
+  void calculate_mixedStance_countsOnlySupportedMatches() {
+    Map<String, String> allFields =
+        Map.of("수치", "3%", "일자", "2025", "대상", "GDP", "금액", "N/A", "제도명", "성장률 발표");
+    Map<String, String> mismatched = Map.of("수치", "2.8%");
+    List<EvidenceSnapshot> sources =
+        List.of(
+            new EvidenceSnapshot(
+                "http://a.com", "A", "A제목", "SUPPORTED", allFields, Collections.emptyMap()),
+            new EvidenceSnapshot(
+                "http://b.com", "B", "B제목", "SUPPORTED", allFields, Collections.emptyMap()),
+            new EvidenceSnapshot(
+                "http://c.com", "C", "C제목", "CONTRADICTED", allFields, mismatched));
+    Optional<Integer> result = scorer.calculate(CLAIM, sources, POLICY);
+    assertThat(result).isPresent();
+    // numerator = 5+5 (SUPPORTED 2건만) = 10, denom = 5*3 = 15 -> ratio 66, 수치(critical) mismatch ->
+    // cap 50
+    assertThat(result.get()).isEqualTo(50);
+  }
 }
