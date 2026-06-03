@@ -15,7 +15,8 @@ import java.util.Map;
  * @param title 제목
  * @param stance 충실성 판정 — "supports" / "refutes" / "neutral"
  * @param matchedFields 일치 항목 맵 — 수치/일자/대상/금액/제도명 중 매칭된 키-값 쌍
- * @param summary 1줄 요약 (drop 대상 — EvidenceSnapshot 5필드 불변)
+ * @param summary 1줄 요약 (drop 대상 — EvidenceSnapshot 필드 불변)
+ * @param mismatchedFields 불일치 항목 맵 — 비교가 이루어졌으나 불일치 확인된 키-값 쌍
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FidelityItem(
@@ -24,4 +25,5 @@ public record FidelityItem(
     @JsonProperty("title") String title,
     @JsonProperty("stance") String stance,
     @JsonProperty("matched_fields") Map<String, String> matchedFields,
-    @JsonProperty("summary") String summary) {}
+    @JsonProperty("summary") String summary,
+    @JsonProperty("mismatched_fields") Map<String, String> mismatchedFields) {}

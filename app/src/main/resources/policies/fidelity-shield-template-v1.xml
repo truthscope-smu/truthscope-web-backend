@@ -14,6 +14,9 @@
     supports 또는 refutes 판정 시 matched_fields 는 반드시 1개 이상이어야 합니다.
     neutral 판정 시 matched_fields 는 비어 있어도 됩니다.
     summary 는 판정 이유를 1줄로 요약하세요.
+    mismatched_fields 에는 비교가 실제로 이루어졌으나 불일치가 확인된 항목만 키-값 쌍으로 기록하세요.
+    비교 불가하거나 원문에 없는 항목은 포함하지 마세요.
+    동일 항목이 matched_fields 와 mismatched_fields 에 동시에 존재할 수 없습니다.
   </task>
   <user_input><![CDATA[
 검증 대상 claim:
@@ -32,6 +35,9 @@ ${CANDIDATES_BLOCK}
         "stance": "supports | refutes | neutral",
         "matched_fields": {
           "항목명": "일치 값"
+        },
+        "mismatched_fields": {
+          "항목명": "원문의 실제 값"
         },
         "summary": "판정 이유 1줄"
       }

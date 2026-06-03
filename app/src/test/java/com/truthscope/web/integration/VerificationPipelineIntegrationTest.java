@@ -298,19 +298,22 @@ class VerificationPipelineIntegrationTest {
                   "공식 출처 1",
                   "기사 제목 1",
                   "SUPPORTED",
-                  Map.of()),
+                  Map.of(),
+                  java.util.Collections.emptyMap()),
               new EvidenceSnapshot(
                   "https://valid-source.com/article-2",
                   "공식 출처 2",
                   "기사 제목 2",
                   "SUPPORTED",
-                  Map.of()),
+                  Map.of(),
+                  java.util.Collections.emptyMap()),
               new EvidenceSnapshot(
                   "https://valid-source.com/article-3",
                   "공식 출처 3",
                   "기사 제목 3",
                   "SUPPORTED",
-                  Map.of()));
+                  Map.of(),
+                  java.util.Collections.emptyMap()));
       when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(snapshots);
 
       // rev.3 RC-2 amend: UrlValidator 실 HTTP HEAD 차단

@@ -38,6 +38,9 @@ public class ScoringPolicyConfig {
       @Value(
               "${truthscope.tier3-reason.time-keywords-resource:classpath:policies/tier3-reason-time-keywords-v1.txt}")
           Resource timeKeywordsResource,
+      @Value(
+              "${truthscope.tier3-reason.out-of-scope-patterns-resource:classpath:policies/tier3-reason-out-of-scope-patterns-v1.txt}")
+          Resource outOfScopePatternsResource,
       @Value("${truthscope.tier3-reason.missing-ref-date-threshold-days:30}")
           int missingRefDateThresholdDays)
       throws IOException {
@@ -48,16 +51,22 @@ public class ScoringPolicyConfig {
     }
     Set<String> timeKeywords;
     try (InputStream is = timeKeywordsResource.getInputStream()) {
-      timeKeywords =
-          new String(is.readAllBytes(), StandardCharsets.UTF_8)
-              .lines()
-              .map(String::trim)
-              .filter(line -> !line.isEmpty() && !line.startsWith("#"))
-              .collect(Collectors.toUnmodifiableSet());
+      timeKeywords = loadPatterns(is);
     }
-    // outOfScopePatterns 초기값 = 빈 Set (Wave 2 또는 별 phase 에서 ADR-018 제외 기준 패턴 채움)
-    Set<String> outOfScopePatterns = Set.of();
+    Set<String> outOfScopePatterns;
+    try (InputStream is = outOfScopePatternsResource.getInputStream()) {
+      outOfScopePatterns = loadPatterns(is);
+    }
     return new Tier3ReasonPolicy(timeKeywords, outOfScopePatterns, missingRefDateThresholdDays);
+  }
+
+  /** 패턴 파일 InputStream 에서 줄 목록을 읽어 Set 으로 반환한다. # 주석 및 빈 줄 무시. */
+  private Set<String> loadPatterns(InputStream is) throws IOException {
+    return new String(is.readAllBytes(), StandardCharsets.UTF_8)
+        .lines()
+        .map(String::trim)
+        .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+        .collect(Collectors.toUnmodifiableSet());
   }
 
   @Bean
@@ -80,7 +89,7 @@ public class ScoringPolicyConfig {
 
   @Bean
   public CascadePolicy cascadePolicy(
-      @Value("${truthscope.cascade.source-count-threshold:3}") int sourceCountThreshold,
+      @Value("${truthscope.cascade.source-count-threshold:1}") int sourceCountThreshold,
       @Value("${truthscope.cascade.tier1-hit-required:true}") boolean tier1HitRequired,
       @Value("${truthscope.cascade.critical-field-cap-percent:50}") int criticalFieldCapPercent) {
     return new CascadePolicy(
