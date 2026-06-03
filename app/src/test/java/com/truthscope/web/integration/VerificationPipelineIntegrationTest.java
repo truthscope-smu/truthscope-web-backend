@@ -314,7 +314,7 @@ class VerificationPipelineIntegrationTest {
                   "SUPPORTED",
                   Map.of(),
                   java.util.Collections.emptyMap()));
-      when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(snapshots);
+      when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(snapshots);
 
       // rev.3 RC-2 amend: UrlValidator 실 HTTP HEAD 차단
       when(urlValidator.validate(anyString())).thenReturn(true);
@@ -560,7 +560,7 @@ class VerificationPipelineIntegrationTest {
       when(factcheckCacheRepo.searchByText(eq(insufficientText))).thenReturn(List.of());
 
       // hybridCascade empty → Tier 2 진입 불가 → Tier 3 INSUFFICIENT 기본
-      when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+      when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(List.of());
 
       ExtractedArticle fixtureArticle =
           ExtractedArticle.builder()
@@ -624,7 +624,7 @@ class VerificationPipelineIntegrationTest {
     void tier3Fallback_cacheMissAndEmptyCascade_insufficientReason() throws Exception {
       // Given: factcheck miss + hybridCascade empty + SCORABLE 1건
       when(factcheckCacheRepo.searchByText(anyString())).thenReturn(List.of());
-      when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+      when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(List.of());
 
       ExtractedArticle fixtureArticle =
           ExtractedArticle.builder()

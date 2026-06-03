@@ -17,6 +17,7 @@ import com.truthscope.web.scoring.TruthLabel;
 import com.truthscope.web.scoring.TruthLabelDeriver;
 import com.truthscope.web.service.verification.VerificationCascadeService;
 import jakarta.annotation.Nullable;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,14 +42,22 @@ public class AsyncAnalysisService {
    * 비동기 분석 후반부: markAnalyzing, claims, cascade, 집계, persist(COMPLETED).
    *
    * <p>@Async void라 예외 전파 불가 - 내부 try/catch에서 markFailed. markFailed 자체 실패도 중첩 try/catch로 로깅.
+   *
+   * @param publishedAt 기사 발행일 (nullable). Tier 2 evidence 윈도우의 기준일 폴백으로 cascade 에 전달된다. claimText 에
+   *     날짜가 없을 때 발행 시점의 data.go.kr 원문을 검색하기 위함 (today 폴백 시 과거 기사가 매칭 0건이 되는 문제 회피).
    */
   @Async("analysisExecutor")
-  public void process(UUID sessionId, UUID articleId, String body, @Nullable String userApiKey) {
+  public void process(
+      UUID sessionId,
+      UUID articleId,
+      String body,
+      @Nullable LocalDate publishedAt,
+      @Nullable String userApiKey) {
     try {
       transactionService.markAnalyzing(sessionId);
       List<ClaimDraft> drafts = claimAnalysisPort.analyze(body, userApiKey);
       List<Claim> savedClaims = transactionService.persistClaims(articleId, drafts);
-      List<ClaimCascadeResult> results = verificationCascadeService.cascade(drafts);
+      List<ClaimCascadeResult> results = verificationCascadeService.cascade(drafts, publishedAt);
       // signals는 집계 4함수에만 사용. persistCascadeResults는 cascadeResults에서 signals를 자체 재도출.
       List<ClaimVerificationSignal> signals =
           results.stream().map(ClaimCascadeResult::signal).toList();

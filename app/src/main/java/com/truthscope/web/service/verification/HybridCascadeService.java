@@ -39,19 +39,32 @@ public class HybridCascadeService {
   private final EvidencePrefilter prefilter;
 
   /**
+   * claimText 에 대한 evidence 목록을 반환한다 (기사 발행일 미지정 — claimText 날짜 또는 today 윈도우).
+   *
+   * @param claimText 검증 대상 claim 텍스트
+   * @param topK 반환할 최대 evidence 수
+   * @return EvidenceSnapshot 목록. 실패 시 빈 목록.
+   */
+  public List<EvidenceSnapshot> retrieve(String claimText, int topK) {
+    return retrieve(claimText, topK, null);
+  }
+
+  /**
    * claimText 에 대한 evidence 목록을 반환한다.
    *
    * <p>@Transactional 없음 (RC-01 — 외부 HTTP 포함).
    *
    * @param claimText 검증 대상 claim 텍스트
    * @param topK 반환할 최대 evidence 수
+   * @param fallbackDate 기사 발행일 (nullable). claimText 에 날짜가 없을 때 evidence 윈도우 기준일로 사용. null 이면 today
+   *     기준. 과거 기사도 발행 시점의 data.go.kr 원문을 검색하게 하여 매칭 0건(INSUFFICIENT)을 방지한다.
    * @return stance SUPPORTED/CONTRADICTED 이고 matchedFields 비어 있지 않은 EvidenceSnapshot 목록. data.go.kr
    *     + Naver URL dedupe 병합 결과. 실패 시 빈 목록.
    */
-  public List<EvidenceSnapshot> retrieve(String claimText, int topK) {
+  public List<EvidenceSnapshot> retrieve(String claimText, int topK, LocalDate fallbackDate) {
     try {
-      // 1) 날짜 윈도우 결정
-      EvidenceWindowResolver.Window window = windowResolver.resolve(claimText);
+      // 1) 날짜 윈도우 결정 (claimText 날짜 우선, 없으면 기사 발행일, 그것도 없으면 today)
+      EvidenceWindowResolver.Window window = windowResolver.resolve(claimText, fallbackDate);
       LocalDate from = window.from();
       LocalDate to = window.to();
 

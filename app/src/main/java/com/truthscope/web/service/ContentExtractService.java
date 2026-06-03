@@ -87,11 +87,18 @@ public class ContentExtractService {
     String title = ArticleHtmlParser.extractTitle(doc);
     String bodyText = ArticleHtmlParser.extractBody(doc);
     String lang = ArticleHtmlParser.extractLang(doc);
+    java.time.LocalDate publishedAt = ArticleHtmlParser.extractPublishedAt(doc);
 
     if (bodyText.isBlank()) {
       throw new ExtractionFailedException("기사 본문을 추출할 수 없습니다");
     }
-    return ExtractedArticle.builder().title(title).body(bodyText).lang(lang).domain(domain).build();
+    return ExtractedArticle.builder()
+        .title(title)
+        .body(bodyText)
+        .lang(lang)
+        .domain(domain)
+        .publishedAt(publishedAt)
+        .build();
   }
 
   /** Per-extraction redirect loop with re-validation through SsrfGuard. */

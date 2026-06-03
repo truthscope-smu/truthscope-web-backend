@@ -102,7 +102,7 @@ class VerificationCascadeServiceTest {
   void cascade_returnsSignalListForGivenClaims() {
     ClaimDraft draft = buildDraft("정부는 2025년 GDP 3% 성장을 발표했다.");
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+    when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
     List<ClaimCascadeResult> result = service.cascade(List.of(draft));
@@ -126,7 +126,7 @@ class VerificationCascadeServiceTest {
     assertThat(signal.tier()).isEqualTo((short) 1);
     assertThat(signal.score()).isNotNull().isBetween(0, 100);
     // Tier 1 히트 시 HybridCascadeService 호출 안 됨
-    verify(hybridCascade, never()).retrieve(anyString(), anyInt());
+    verify(hybridCascade, never()).retrieve(anyString(), anyInt(), any());
   }
 
   @Test
@@ -158,14 +158,15 @@ class VerificationCascadeServiceTest {
             Map.of(),
             java.util.Collections.emptyMap());
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of(snap1, snap2, snap3));
+    when(hybridCascade.retrieve(anyString(), anyInt(), any()))
+        .thenReturn(List.of(snap1, snap2, snap3));
     when(urlValidator.validate(anyString())).thenReturn(true);
     when(policyScorer.calculate(any(), anyList(), any())).thenReturn(Optional.of(75));
 
     List<ClaimCascadeResult> result = service.cascade(List.of(draft));
 
     // cache miss → HybridCascade → policyScorer 경로 → Tier 2 SCORABLE 신호 산출
-    verify(hybridCascade, atLeastOnce()).retrieve(eq(draft.claimText()), anyInt());
+    verify(hybridCascade, atLeastOnce()).retrieve(eq(draft.claimText()), anyInt(), any());
     assertThat(result).hasSize(1);
     ClaimVerificationSignal signal = result.get(0).signal();
     assertThat(signal.tier()).isEqualTo((short) 2);
@@ -178,7 +179,7 @@ class VerificationCascadeServiceTest {
   void cascade_routesUnsufficientToTier3() {
     ClaimDraft draft = buildDraft("검증 불가 claim");
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+    when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(List.of());
     when(tier3Validator.validate(any()))
         .thenReturn(Optional.of(HeuristicValidator.Tier3ReasonCandidate.INSUFFICIENT));
 
@@ -218,7 +219,7 @@ class VerificationCascadeServiceTest {
             null);
 
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+    when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
     List<ClaimCascadeResult> result = service.cascade(List.of(draftWithAttribution));
@@ -237,7 +238,7 @@ class VerificationCascadeServiceTest {
     ClaimDraft draft3 = buildDraft("claim 3");
 
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of());
+    when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(List.of());
     when(tier3Validator.validate(any())).thenReturn(Optional.empty());
 
     List<ClaimCascadeResult> result = service.cascade(List.of(draft1, draft2, draft3));
@@ -256,7 +257,7 @@ class VerificationCascadeServiceTest {
 
     assertThat(result).isEmpty();
     verify(factcheckCacheRepository, never()).searchByText(anyString());
-    verify(hybridCascade, never()).retrieve(anyString(), anyInt());
+    verify(hybridCascade, never()).retrieve(anyString(), anyInt(), any());
   }
 
   @Test
@@ -269,7 +270,7 @@ class VerificationCascadeServiceTest {
     EvidenceSnapshot s3 = buildSnapshot("https://example3.com");
 
     when(factcheckCacheRepository.searchByText(anyString())).thenReturn(List.of());
-    when(hybridCascade.retrieve(anyString(), anyInt())).thenReturn(List.of(s1, s2, s3));
+    when(hybridCascade.retrieve(anyString(), anyInt(), any())).thenReturn(List.of(s1, s2, s3));
     when(urlValidator.validate(anyString())).thenReturn(true);
     when(policyScorer.calculate(any(), any(), any())).thenReturn(Optional.of(80));
 

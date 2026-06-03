@@ -59,15 +59,15 @@ class AsyncAnalysisServiceTest {
     // 빈 cascade 경로: SCORABLE signal 0건이라 집계 4함수가 policy를 건드리지 않고 안전하게 종료(persist까지 도달).
     when(claimAnalysisPort.analyze(body, null)).thenReturn(List.of());
     when(transactionService.persistClaims(eq(articleId), any())).thenReturn(List.of());
-    when(verificationCascadeService.cascade(any())).thenReturn(List.of());
+    when(verificationCascadeService.cascade(any(), any())).thenReturn(List.of());
 
-    asyncAnalysisService.process(sessionId, articleId, body, null);
+    asyncAnalysisService.process(sessionId, articleId, body, null, null);
 
     InOrder order = inOrder(transactionService, claimAnalysisPort, verificationCascadeService);
     order.verify(transactionService).markAnalyzing(sessionId);
     order.verify(claimAnalysisPort).analyze(body, null);
     order.verify(transactionService).persistClaims(eq(articleId), any());
-    order.verify(verificationCascadeService).cascade(any());
+    order.verify(verificationCascadeService).cascade(any(), any());
     order
         .verify(transactionService)
         .persistCascadeResults(eq(sessionId), any(), any(), any(), any(), any(), any());
@@ -82,7 +82,7 @@ class AsyncAnalysisServiceTest {
 
     doThrow(new RuntimeException("Gemini 호출 실패")).when(claimAnalysisPort).analyze(body, null);
 
-    asyncAnalysisService.process(sessionId, articleId, body, null);
+    asyncAnalysisService.process(sessionId, articleId, body, null, null);
 
     verify(transactionService, times(1)).markFailed(sessionId);
   }
