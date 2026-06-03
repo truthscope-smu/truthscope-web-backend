@@ -26,6 +26,7 @@ import com.truthscope.web.scoring.ClaimDraft;
 import com.truthscope.web.scoring.ClaimScoreStatus;
 import com.truthscope.web.scoring.ClaimVerificationSignal;
 import com.truthscope.web.scoring.CoverageSummary;
+import com.truthscope.web.scoring.EvidenceSnapshot;
 import com.truthscope.web.scoring.SourceTransparencySummary;
 import com.truthscope.web.scoring.TruthLabel;
 import java.time.LocalDateTime;
@@ -175,10 +176,11 @@ public class AnalysisTransactionService {
 
     // 1. signals → VerificationResult entity 영속화 + VerifySource 저장 (인덱스 페어링)
     for (int i = 0; i < signals.size(); i++) {
+      List<EvidenceSnapshot> evidence = cascadeResults.get(i).evidence();
       VerificationResult saved =
-          verificationResultRepository.save(buildResult(signals.get(i), savedClaims.get(i)));
-      List<VerifySource> rows =
-          VerifySourceConverter.toEntities(saved, cascadeResults.get(i).evidence());
+          verificationResultRepository.save(
+              buildResult(signals.get(i), savedClaims.get(i), evidence));
+      List<VerifySource> rows = VerifySourceConverter.toEntities(saved, evidence);
       verifySourceRepository.saveAll(rows);
     }
 
@@ -237,29 +239,34 @@ public class AnalysisTransactionService {
   }
 
   /**
-   * ClaimScoreStatus를 Verdict로 매핑한다.
-   *
-   * <p>VerificationResult.verdict 컬럼은 NOT NULL이므로 모든 status에 대해 Verdict 값을 반환한다. SCORABLE claim의
-   * Verdict(SUPPORTED/CONTRADICTED 구분)는 Tier 2 stance 점수 기반 정밀 구분이 필요하나, v1.x에서는 점수 > 50을
-   * SUPPORTED로 보수적 매핑한다 (Phase 55 scope 밖, µ2.5 이후 정밀화 예정).
-   *
-   * @param status ClaimVerificationSignal 의 status
-   * @return 대응 Verdict
+   * status와 evidence stance를 Verdict로 매핑한다. SCORABLE은 evidence 다수결: 반박이 뒷받침보다 많으면 CONTRADICTED, 그
+   * 외(동률·evidence 없음 포함)는 SUPPORTED. verdict 컬럼 NOT NULL이라 모든 status에 값을 반환한다.
    */
-  private Verdict mapVerdict(ClaimScoreStatus status) {
+  private Verdict mapVerdict(ClaimScoreStatus status, List<EvidenceSnapshot> evidence) {
     return switch (status) {
-      case SCORABLE -> Verdict.SUPPORTED;
+      case SCORABLE -> isMajorityContradicted(evidence) ? Verdict.CONTRADICTED : Verdict.SUPPORTED;
       case INSUFFICIENT -> Verdict.INSUFFICIENT;
       case TIME_SENSITIVE -> Verdict.TIME_SENSITIVE;
       case OUT_OF_SCOPE -> Verdict.OUT_OF_SCOPE;
     };
   }
 
+  /** evidence stance 다수결 — CONTRADICTED 수가 SUPPORTED 수보다 많으면 true (null/빈 리스트는 false). */
+  static boolean isMajorityContradicted(List<EvidenceSnapshot> evidence) {
+    if (evidence == null || evidence.isEmpty()) {
+      return false;
+    }
+    long contradicted = evidence.stream().filter(e -> "CONTRADICTED".equals(e.stance())).count();
+    long supported = evidence.stream().filter(e -> "SUPPORTED".equals(e.stance())).count();
+    return contradicted > supported;
+  }
+
   /**
    * 단일 ClaimVerificationSignal을 VerificationResult entity로 변환한다 (R1-8 score 변환 + R2-6 disclaimer +
    * verdict/tier3Reason/reason 매핑 포함).
    */
-  private VerificationResult buildResult(ClaimVerificationSignal signal, Claim claim) {
+  private VerificationResult buildResult(
+      ClaimVerificationSignal signal, Claim claim, List<EvidenceSnapshot> evidence) {
     Short shortScore =
         signal.score() == null ? null : (short) Math.min(100, Math.max(0, signal.score()));
     String disclaimer = signal.tier() == 2 ? "AI 분석이며 기관 검증이 아닙니다. 참고 용도로만 활용하세요." : null;
@@ -267,7 +274,7 @@ public class AnalysisTransactionService {
         .claim(claim)
         .tier(signal.tier())
         .score(shortScore)
-        .verdict(mapVerdict(signal.status()))
+        .verdict(mapVerdict(signal.status(), evidence))
         .tier3Reason(mapTier3Reason(signal.status()))
         .reason(buildReason(signal))
         .disclaimer(disclaimer)
