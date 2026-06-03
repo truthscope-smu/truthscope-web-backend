@@ -239,16 +239,18 @@ public class FidelityClassifierService implements FidelityClassifierPort {
   }
 
   /**
-   * 관련성 필터 (codex Round 2 조건 1 MANDATORY): stance ∈ {SUPPORTED, CONTRADICTED} 이고 matchedFields 비어
-   * 있지 않은 후보만 통과. NEUTRAL/UNRELATED/0-match 는 evidence 카운트에서 제외.
+   * 관련성 필터: stance ∈ {SUPPORTED, CONTRADICTED} 이고 필드 단위 대조가 실제로 성립한(matchedFields 또는
+   * mismatchedFields 중 하나라도 비어 있지 않은) 후보만 통과. 즉 topical relevance 필터가 아니라 utility-bearing
+   * field-comparison 필터다. refuting evidence도 field-level mismatch가 있으면 양성 검증 신호로 보존한다
+   * (FEVER/SciFact/AVeriTeC/FNC-1 정합). NEUTRAL/UNRELATED 및 대조 0건(matched·mismatched 모두 빈)은 제외.
    */
-  private List<EvidenceSnapshot> applyRelevanceFilter(List<EvidenceSnapshot> snapshots) {
+  static List<EvidenceSnapshot> applyRelevanceFilter(List<EvidenceSnapshot> snapshots) {
     return snapshots.stream()
         .filter(
             s ->
                 ("SUPPORTED".equals(s.stance()) || "CONTRADICTED".equals(s.stance()))
-                    && s.matchedFields() != null
-                    && !s.matchedFields().isEmpty())
+                    && ((s.matchedFields() != null && !s.matchedFields().isEmpty())
+                        || (s.mismatchedFields() != null && !s.mismatchedFields().isEmpty())))
         .toList();
   }
 
