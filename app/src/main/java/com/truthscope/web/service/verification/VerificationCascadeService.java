@@ -12,6 +12,8 @@ import com.truthscope.web.scoring.ClaimVerificationSignal;
 import com.truthscope.web.scoring.EvidenceSnapshot;
 import com.truthscope.web.scoring.SourceTransparency;
 import com.truthscope.web.url.UrlValidator;
+import jakarta.annotation.Nullable;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -41,13 +43,25 @@ public class VerificationCascadeService {
   private final ClaimAttributionService attributionService;
 
   /**
-   * 주어진 ClaimDraft 목록을 3-Tier Cascade 로 검증하고 ClaimCascadeResult 목록을 반환한다.
+   * 주어진 ClaimDraft 목록을 3-Tier Cascade 로 검증하고 ClaimCascadeResult 목록을 반환한다 (기사 발행일 미지정).
    *
    * @param drafts Wave 1 ClaimAnalysisService 가 추출한 draft 목록
    * @return 각 draft 에 대응하는 ClaimCascadeResult 목록 (순서 보존)
    */
   public List<ClaimCascadeResult> cascade(List<ClaimDraft> drafts) {
-    return drafts.stream().map(this::cascadeOne).toList();
+    return cascade(drafts, null);
+  }
+
+  /**
+   * 주어진 ClaimDraft 목록을 3-Tier Cascade 로 검증한다. 기사 발행일을 Tier 2 evidence 윈도우의 기준일 폴백으로 전달한다.
+   *
+   * @param drafts Wave 1 ClaimAnalysisService 가 추출한 draft 목록
+   * @param articlePublishedAt 기사 발행일 (nullable). claimText 에 날짜가 없을 때 evidence 윈도우 기준일로 사용.
+   * @return 각 draft 에 대응하는 ClaimCascadeResult 목록 (순서 보존)
+   */
+  public List<ClaimCascadeResult> cascade(
+      List<ClaimDraft> drafts, @Nullable LocalDate articlePublishedAt) {
+    return drafts.stream().map(draft -> cascadeOne(draft, articlePublishedAt)).toList();
   }
 
   /**
@@ -65,9 +79,10 @@ public class VerificationCascadeService {
    * <p>attribution 부착은 v1.x 에서 스킵 (DB 부하 절약). µ2.4 persistCascadeResults 에서 처리.
    *
    * @param draft 검증 대상 ClaimDraft
+   * @param articlePublishedAt 기사 발행일 (nullable). Tier 2 evidence 윈도우 기준일 폴백.
    * @return ClaimCascadeResult (signal compact constructor 불변식 보장, Tier 2 경우 evidence 포함)
    */
-  private ClaimCascadeResult cascadeOne(ClaimDraft draft) {
+  private ClaimCascadeResult cascadeOne(ClaimDraft draft, @Nullable LocalDate articlePublishedAt) {
 
     // Tier 1: factcheck_cache 전문 검색
     List<?> cacheHits = factcheckCacheRepository.searchByText(draft.claimText());
@@ -82,8 +97,9 @@ public class VerificationCascadeService {
           List.of());
     }
 
-    // Tier 2: HybridCascadeService -> URL 검증 -> 점수 산출
-    List<EvidenceSnapshot> snapshots = hybridCascade.retrieve(draft.claimText(), 5);
+    // Tier 2: HybridCascadeService -> URL 검증 -> 점수 산출 (기사 발행일을 윈도우 기준일 폴백으로 전달)
+    List<EvidenceSnapshot> snapshots =
+        hybridCascade.retrieve(draft.claimText(), 5, articlePublishedAt);
     List<EvidenceSnapshot> validSnapshots =
         snapshots.stream().filter(s -> urlValidator.validate(s.url())).toList();
 
