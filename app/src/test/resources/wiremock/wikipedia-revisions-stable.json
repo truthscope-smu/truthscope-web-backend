@@ -1,0 +1,14 @@
+{
+  "query": {
+    "pages": {
+      "12345": {
+        "pageid": 12345,
+        "title": "삼성전자",
+        "revisions": [
+          {"revid": 101, "timestamp": "2026-05-27T10:00:00Z"},
+          {"revid": 100, "timestamp": "2026-05-27T06:00:00Z"}
+        ]
+      }
+    }
+  }
+}

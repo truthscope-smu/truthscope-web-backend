@@ -1,0 +1,20 @@
+{
+  "query": {
+    "pages": {
+      "99999": {
+        "pageid": 99999,
+        "title": "정치뉴스속보",
+        "revisions": [
+          {"revid": 210, "timestamp": "2026-05-27T11:00:00Z"},
+          {"revid": 209, "timestamp": "2026-05-27T10:45:00Z"},
+          {"revid": 208, "timestamp": "2026-05-27T10:30:00Z"},
+          {"revid": 207, "timestamp": "2026-05-27T10:15:00Z"},
+          {"revid": 206, "timestamp": "2026-05-27T10:00:00Z"},
+          {"revid": 205, "timestamp": "2026-05-27T09:50:00Z"},
+          {"revid": 204, "timestamp": "2026-05-27T09:40:00Z"},
+          {"revid": 203, "timestamp": "2026-05-27T09:30:00Z"}
+        ]
+      }
+    }
+  }
+}

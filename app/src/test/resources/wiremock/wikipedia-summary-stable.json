@@ -1,0 +1,11 @@
+{
+  "title": "삼성전자",
+  "extract": "삼성전자 주식회사는 대한민국의 다국적 전자기업이다.",
+  "description": "대한민국의 전자기업",
+  "lang": "ko",
+  "content_urls": {
+    "desktop": {
+      "page": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90"
+    }
+  }
+}

@@ -6,22 +6,32 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.truthscope.web.config.SecurityConfig;
+import com.truthscope.web.security.SupabaseAuthenticationEntryPoint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** GlobalExceptionHandler 단위 테스트 */
 @WebMvcTest(controllers = ExceptionTestController.class)
-@Import({GlobalExceptionHandler.class, SecurityConfig.class})
+@Import({
+  GlobalExceptionHandler.class,
+  SecurityConfig.class,
+  SupabaseAuthenticationEntryPoint.class
+})
 @ActiveProfiles("test")
 class GlobalExceptionHandlerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig에 oauth2ResourceServer + JwtDecoder bean이 필요 — WebMvcTest 컨텍스트 로드용 mock
+  @MockitoBean private JwtDecoder jwtDecoder;
 
   @Test
   @DisplayName("NotFoundException → 404, status=fail 반환")

@@ -1,7 +1,11 @@
 package com.truthscope.web.entity;
 
+import com.truthscope.web.entity.enums.Tier3Reason;
+import com.truthscope.web.entity.enums.Verdict;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -36,6 +40,15 @@ public class VerificationResult extends BaseTimeEntity {
   @Column(name = "tier")
   private Short tier;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "verdict", length = 30, nullable = false)
+  private Verdict verdict;
+
+  /**
+   * @deprecated Tier 파생 표시값(legacy). 무결성 기준은 V3부터 verdict로 이전됐다. V3에서 nullable 전환, 물리 DROP은 V4 예정.
+   *     신규 의미 부여 금지(ADR-014 Accepted).
+   */
+  @Deprecated
   @Column(name = "label", length = 30)
   private String label;
 
@@ -50,4 +63,8 @@ public class VerificationResult extends BaseTimeEntity {
 
   @Column(name = "verified_at")
   private LocalDateTime verifiedAt;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "tier3_reason", length = 30)
+  private Tier3Reason tier3Reason;
 }

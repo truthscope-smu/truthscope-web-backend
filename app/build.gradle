@@ -8,12 +8,19 @@ dependencies {
 	implementation project(':core')
 
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 	implementation 'org.jsoup:jsoup:1.18.3'
 	implementation 'org.apache.httpcomponents.client5:httpclient5'
+	implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
+	// Phase 66b — data.go.kr 정책뉴스/보도자료 XML 응답 파싱 (XmlMapper). 버전 = Spring Boot BOM.
+	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
@@ -24,7 +31,16 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:postgresql'
 	testImplementation 'org.testcontainers:junit-jupiter'
+	// BE #92 (S3-05 후속) — wiremock-spring-boot for BYOK 실 HTTP 통합 test (@EnableWireMock)
+	// BE #74에서 wiremock-standalone:3.10.0 박제 → BE #92에서 wiremock-spring-boot 도입으로 Spring Boot
+	// auto-wiring 활용 (`@MockBean GeminiClient` stub 제거 + 실 RestClient → WireMock baseUrl redirect).
+	testImplementation 'org.wiremock.integrations:wiremock-spring-boot:3.10.0'
 }
 
 // throwaway 연구 코드(spike)는 워크스페이스 레벨 `truthscope-web/spike/` 독립 Java 프로젝트로 분리됨 (2026-05-04).
 // 이전 `app/src/spike/` sourceSet 제거 — BE 빌드 파이프라인과 단절. 상세는 spike/README.md 및 BE CLAUDE.md.
+
+// 배포 JAR 이름을 버전 비포함 고정명으로 강제 (Procfile이 버전 변경에 깨지지 않도록 — PR #100 CodeRabbit Major 반영).
+bootJar {
+	archiveFileName = 'app.jar'
+}

@@ -47,4 +47,10 @@ public class ApiUsageLog {
 
   @Column(name = "token_count")
   private Integer tokenCount;
+
+  @Column(name = "key_source", nullable = false, length = 20)
+  private String keySource;
+
+  @Column(name = "key_fingerprint", length = 16)
+  private String keyFingerprint;
 }

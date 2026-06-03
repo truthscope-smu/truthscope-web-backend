@@ -8,6 +8,15 @@ spring:
     password: ${SUPABASE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Supabase public 스키마는 기본 객체가 있어 "non-empty" — Flyway가 history 없으면 거부함.
+    # baseline-on-migrate로 history 테이블 생성 + baseline 마커 삽입 후 V1 적용.
+    # baseline-version=0 필수: 기본값 1이면 V1(version 1)이 "baseline 초과만 적용" 규칙에 걸려 스킵됨.
+    baseline-on-migrate: true
+    baseline-version: 0
+
   jpa:
     hibernate:
       ddl-auto: none
@@ -21,6 +30,11 @@ spring:
       name: admin
       password: ${ADMIN_PASSWORD:admin}
 
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false # epoch 배열 대신 ISO-8601 문자열
+    time-zone: UTC
+
 server:
   port: ${SERVER_PORT:8080}
 
@@ -28,3 +42,59 @@ logging:
   level:
     com.truthscope.web: DEBUG
     org.hibernate.SQL: DEBUG
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      gemini:
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        sliding-window-type: TIME_BASED
+        sliding-window-size: 60   # 초 단위 (TIME_BASED 기준)
+        slow-call-duration-threshold: 3s
+        slow-call-rate-threshold: 50
+        minimum-number-of-calls: 3
+        record-exceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpClientErrorException.TooManyRequests
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException.BadRequest
+          - org.springframework.web.client.HttpClientErrorException.Unauthorized
+          - org.springframework.web.client.HttpClientErrorException.Forbidden
+
+truthscope:
+  supabase:
+    jwk-set-uri: ${SUPABASE_JWK_SET_URI:https://cbomiwbngcajjmslflfc.supabase.co/auth/v1/.well-known/jwks.json}
+    issuer: ${SUPABASE_ISSUER:https://cbomiwbngcajjmslflfc.supabase.co/auth/v1}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    # base-url default는 RestClientConfig의 @Value에서 정의 (BE #92 wiremock-spring-boot customizer가
+    # PropertySource로 override할 때 application.yml의 nested placeholder가 우선 evaluate되는 케이스 회피).
+    # production에서 환경변수 override 필요 시 GEMINI_BASE_URL 또는 truthscope.gemini.base-url 직접 set.
+    prompt-version: "v1.0.0"
+    schema-version: "v1.0.0"
+  datasource:
+    # data.go.kr 정책뉴스 + 보도자료 공통 서비스 키. 로컬은 application-local.yml에 평문,
+    # 배포는 DATA_GO_KR_KEY 환경변수로 주입(application-prod.yml은 폴백 없음).
+    data-go-kr-key: ${DATA_GO_KR_KEY:}
+    # 네이버 뉴스 검색 API (Phase 72 Tier 1 보조 출처). Client ID와 Secret은 요청 헤더
+    # X-Naver-Client-Id, X-Naver-Client-Secret로 전달. 로컬은 application-local.yml 평문,
+    # 배포는 NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET 환경변수로 주입. 보조 출처라 기본값은 빈 값(선택).
+    naver-client-id: ${NAVER_CLIENT_ID:}
+    naver-client-secret: ${NAVER_CLIENT_SECRET:}
+    naver-base-url: ${NAVER_BASE_URL:https://openapi.naver.com}
+  cascade:
+    source-count-threshold: 1
+    tier1-hit-required: true
+    critical-field-cap-percent: 50
+    claim-split-fields: ["수치", "일자", "대상", "금액", "제도명"]
+  url-validator:
+    connect-timeout: PT5S
+    read-timeout: PT5S
+    redirect-max-depth: 5
+    retry-count: 1
+    retry-backoff: PT1S
+  tier3-reason:
+    time-keywords-resource: "classpath:policies/tier3-reason-time-keywords-v1.txt"
+    missing-ref-date-threshold-days: 30
