@@ -32,14 +32,28 @@ public class EvidenceWindowResolver {
    * @return 윈도우 (from 포함, to 포함, 최대 3일 차이)
    */
   public Window resolve(String claimText) {
-    if (claimText != null) {
-      LocalDate extracted = tryExtract(claimText);
-      if (extracted != null) {
-        return new Window(extracted.minusDays(3), extracted);
-      }
+    return resolve(claimText, null);
+  }
+
+  /**
+   * 윈도우 기준일 우선순위: claimText 추출 날짜 우선, 없으면 기사 발행일(fallbackDate), 그것도 없으면 today.
+   *
+   * <p>기사 발행일을 기준으로 두면 과거 기사(예: 2025-12 발행)도 발행 시점의 data.go.kr 원문을 검색한다. today 폴백만 쓰면 발행 시점과 어긋나 매칭
+   * 0건(INSUFFICIENT)이 된다.
+   *
+   * @param claimText 검증 대상 claim 텍스트
+   * @param fallbackDate 기사 발행일 (nullable). claimText 에 날짜가 없을 때 기준일로 사용.
+   * @return 윈도우 (from 포함, to 포함, 최대 3일 차이)
+   */
+  public Window resolve(String claimText, LocalDate fallbackDate) {
+    LocalDate base = (claimText != null) ? tryExtract(claimText) : null;
+    if (base == null) {
+      base = fallbackDate;
     }
-    LocalDate today = LocalDate.now();
-    return new Window(today.minusDays(3), today);
+    if (base == null) {
+      base = LocalDate.now();
+    }
+    return new Window(base.minusDays(3), base);
   }
 
   private LocalDate tryExtract(String text) {

@@ -56,7 +56,12 @@ public class AnalysisService {
       AnalysisResponse response =
           transactionService.persistArticleAndUpdateStatus(sessionId, request.url(), extracted);
       // 커밋 후 제출이므로 비동기 스레드가 미커밋 session/article을 못 보는 race가 없다.
-      asyncProcessor.process(sessionId, response.getArticleId(), extracted.getBody(), userApiKey);
+      asyncProcessor.process(
+          sessionId,
+          response.getArticleId(),
+          extracted.getBody(),
+          extracted.getPublishedAt(),
+          userApiKey);
       return response; // EXTRACTING 스냅샷 (process가 인라인 실행돼 DB가 COMPLETED여도 이 DTO 문자열은 EXTRACTING
       // 고정).
     } catch (RuntimeException ex) {

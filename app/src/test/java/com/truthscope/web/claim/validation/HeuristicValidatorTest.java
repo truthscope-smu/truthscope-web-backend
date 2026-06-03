@@ -109,4 +109,41 @@ class HeuristicValidatorTest {
     assertThat(result).isPresent();
     assertThat(result.get()).isEqualTo(HeuristicValidator.Tier3ReasonCandidate.TIME_SENSITIVE);
   }
+
+  // --- 단어 경계 매칭 (복합어 부분문자열 오탐 방지) ---
+
+  private HeuristicValidator boundaryValidator() {
+    return new HeuristicValidator(new Tier3ReasonPolicy(Set.of("미래", "내년"), Set.of(), 30));
+  }
+
+  @Test
+  @DisplayName("복합어_청년미래적금_미래성장은_TIME_SENSITIVE_아님_SCORABLE")
+  void 복합어_미래_부분문자열_매칭안됨() {
+    HeuristicValidator v = boundaryValidator();
+    // "미래"가 "청년미래적금"(제도명)·"미래성장"(일반어)의 부분문자열이지만 단어 경계로는 불일치 -> SCORABLE
+    assertThat(v.validate(buildDraft("청년미래적금 대상자가 10만명에서 160만명으로 확대된다."))).isEmpty();
+    assertThat(v.validate(buildDraft("세출예산의 75%를 미래성장 분야에 배정한다."))).isEmpty();
+  }
+
+  @Test
+  @DisplayName("내년_조사_활용형_내년에_내년부터_내년_단독_TIME_SENSITIVE")
+  void 내년_단어형_조사형_매칭() {
+    HeuristicValidator v = boundaryValidator();
+    assertThat(v.validate(buildDraft("내년에 제도가 시행된다.")))
+        .contains(HeuristicValidator.Tier3ReasonCandidate.TIME_SENSITIVE);
+    assertThat(v.validate(buildDraft("내년부터 단가가 인상된다.")))
+        .contains(HeuristicValidator.Tier3ReasonCandidate.TIME_SENSITIVE);
+    assertThat(v.validate(buildDraft("내년 예산은 727조원이다.")))
+        .contains(HeuristicValidator.Tier3ReasonCandidate.TIME_SENSITIVE);
+  }
+
+  @Test
+  @DisplayName("미래_단독_미래에_되다활용은_TIME_SENSITIVE")
+  void 미래_단어형_매칭() {
+    HeuristicValidator v = boundaryValidator();
+    assertThat(v.validate(buildDraft("미래 세대를 위한 투자다.")))
+        .contains(HeuristicValidator.Tier3ReasonCandidate.TIME_SENSITIVE);
+    assertThat(v.validate(buildDraft("이 사업은 미래에 시행된다.")))
+        .contains(HeuristicValidator.Tier3ReasonCandidate.TIME_SENSITIVE);
+  }
 }
