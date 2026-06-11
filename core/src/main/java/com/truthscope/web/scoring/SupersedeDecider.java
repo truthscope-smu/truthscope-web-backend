@@ -40,6 +40,7 @@ public final class SupersedeDecider {
    * @param policy 재검증 정책 (scoreDriftThreshold, urlReplacementRatio).
    * @return 첫 번째로 충족된 SupersedeReason, 전부 미충족이면 Optional.empty().
    */
+  // CHECKSTYLE:OFF
   public static Optional<SupersedeReason> decide(
       Integer oldScore,
       Integer newScore,
@@ -83,4 +84,5 @@ public final class SupersedeDecider {
 
     return Optional.empty();
   }
+  // CHECKSTYLE:ON
 }

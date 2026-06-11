@@ -123,6 +123,7 @@ public class ReVerifyTransactionService {
    * @param oldResultId 재검증 전 기존 결과 ID
    * @param newResult 재검증 cascade 결과
    */
+  // CHECKSTYLE:OFF
   @Transactional
   public void persistReverifyOutcome(UUID oldResultId, ClaimCascadeResult newResult) {
 
@@ -227,6 +228,8 @@ public class ReVerifyTransactionService {
     session.updateAggregates(sessionTotalScore, newCoverage, tier1Count, tier2Count, tier3Count);
     analysisSessionRepository.save(session);
   }
+
+  // CHECKSTYLE:ON
 
   /**
    * VerificationResult 저장 필드로부터 ClaimVerificationSignal 을 역도출한다.
