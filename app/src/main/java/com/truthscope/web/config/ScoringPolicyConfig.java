@@ -4,6 +4,7 @@ import com.truthscope.web.scoring.ArticleScorePolicy;
 import com.truthscope.web.scoring.CascadePolicy;
 import com.truthscope.web.scoring.ClaimScoreCalculator;
 import com.truthscope.web.scoring.PolicyEvidenceScorer;
+import com.truthscope.web.scoring.ReVerifyPolicy;
 import com.truthscope.web.scoring.ScoreBandPolicy;
 import com.truthscope.web.scoring.StanceRatioScorer;
 import com.truthscope.web.scoring.Tier3ReasonPolicy;
@@ -29,6 +30,8 @@ import org.springframework.core.io.Resource;
  *
  * <p>Wave 2 µ2.2: ArticleScorePolicy / ScoreBandPolicy / CascadePolicy / UrlValidatorPolicy /
  * PolicyEvidenceScorer / StanceRatioScorer 6 @Bean 추가 (PLAN §1 결정 #21 정합).
+ *
+ * <p>Wave 1-B µ72: ReVerifyPolicy @Bean 추가 (UC-145 재검증 정책 쿨다운 및 supersede 4조건 임계값).
  */
 @Configuration
 public class ScoringPolicyConfig {
@@ -97,6 +100,14 @@ public class ScoringPolicyConfig {
         tier1HitRequired,
         criticalFieldCapPercent,
         List.of("수치", "일자", "대상", "금액", "제도명"));
+  }
+
+  @Bean
+  public ReVerifyPolicy reVerifyPolicy(
+      @Value("${truthscope.reverify.cooldown:PT10M}") Duration cooldown,
+      @Value("${truthscope.reverify.score-drift-threshold:15}") int scoreDriftThreshold,
+      @Value("${truthscope.reverify.url-replacement-ratio:0.30}") double urlReplacementRatio) {
+    return new ReVerifyPolicy(cooldown, scoreDriftThreshold, urlReplacementRatio);
   }
 
   @Bean
