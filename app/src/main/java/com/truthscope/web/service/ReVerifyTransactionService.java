@@ -105,20 +105,8 @@ public class ReVerifyTransactionService {
   }
 
   /**
-   * 재검증 결과를 영속화한다.
-   *
-   * <p>advisory lock 획득 실패 시 no-op (호출자가 @Async 가정). supersede 4조건 판별 후 변경 없으면 confirmRecheck, 변경
-   * 있으면 supersede 체인 → 세션 재집계 순으로 처리한다.
-   *
-   * <p>PLAN rev.2 순서 의무:
-   *
-   * <ol>
-   *   <li>advisory lock — 실패 시 return
-   *   <li>기존 행 재조회(체인 JOIN FETCH) — isCurrent() false 면 return
-   *   <li>입력 도출(score/tier/label/oldUrls/newUrls)
-   *   <li>SupersedeDecider.decide — empty 면 confirmRecheck 후 return; present 면 4a → 4d 순서 영속화
-   *   <li>세션 재집계
-   * </ol>
+   * 재검증 결과를 영속화한다. advisory lock 획득 실패 시 no-op (호출자가 @Async 가정). supersede 4조건 판별 후 변경 없으면
+   * confirmRecheck, 변경 있으면 supersede 체인과 세션 재집계 순으로 처리한다. 단계 순서(PLAN rev.2 의무)는 본문 번호 주석이 정본.
    *
    * @param oldResultId 재검증 전 기존 결과 ID
    * @param newResult 재검증 cascade 결과
