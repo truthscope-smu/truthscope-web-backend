@@ -92,8 +92,8 @@ public class VerificationResult extends BaseTimeEntity {
   /**
    * 이 결과를 supersede 처리한다.
    *
-   * <p>영속 순서 제약: 반드시 flush 후 새 결과를 INSERT하고 그 다음 linkSupersededBy 호출.
-   * 마킹-flush-INSERT-link 순서를 어기면 partial unique(uq_vr_claim_current) 위반이 발생한다.
+   * <p>영속 순서 제약: 반드시 flush 후 새 결과를 INSERT하고 그 다음 linkSupersededBy 호출. 마킹-flush-INSERT-link 순서를 어기면
+   * partial unique(uq_vr_claim_current) 위반이 발생한다.
    *
    * @param reason 정정 사유 (ADR-009 4조건 OR)
    */

@@ -18,8 +18,7 @@ import org.junit.jupiter.api.Test;
 class SupersedeDeciderTest {
 
   private static final ScoreBandPolicy BAND = new ScoreBandPolicy(80, 60, 40, 20);
-  private static final ReVerifyPolicy POLICY =
-      new ReVerifyPolicy(Duration.ofHours(24), 15, 0.30);
+  private static final ReVerifyPolicy POLICY = new ReVerifyPolicy(Duration.ofHours(24), 15, 0.30);
 
   /** 테스트용 라벨 도출 도우미 — TruthLabelDeriver 직접 사용(프로덕션 코드와 동일 경로). */
   private TruthLabel label(int score) {
@@ -39,10 +38,14 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            sameUrls, sameUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            sameUrls,
+            sameUrls,
             POLICY);
 
     assertThat(result).isPresent();
@@ -59,10 +62,14 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            sameUrls, sameUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            sameUrls,
+            sameUrls,
             POLICY);
 
     assertThat(result).isEmpty();
@@ -81,10 +88,14 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            sameUrls, sameUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            sameUrls,
+            sameUrls,
             POLICY);
 
     assertThat(result).isEmpty();
@@ -100,10 +111,14 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            sameUrls, sameUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            sameUrls,
+            sameUrls,
             POLICY);
 
     assertThat(result).isPresent();
@@ -121,20 +136,37 @@ class SupersedeDeciderTest {
     int newScore = 88; // 차=2, 둘 다 FACT
     Set<String> oldUrls =
         Set.of(
-            "http://1.com", "http://2.com", "http://3.com", "http://4.com", "http://5.com",
-            "http://6.com", "http://7.com", "http://8.com", "http://9.com", "http://10.com");
+            "http://1.com",
+            "http://2.com",
+            "http://3.com",
+            "http://4.com",
+            "http://5.com",
+            "http://6.com",
+            "http://7.com",
+            "http://8.com",
+            "http://9.com",
+            "http://10.com");
     // new에는 1~7만 있고 8,9,10은 없음 → 없는 것 3개, 비율 3/10 = 30% (이상이므로 발동)
     Set<String> newUrls =
         Set.of(
-            "http://1.com", "http://2.com", "http://3.com", "http://4.com", "http://5.com",
-            "http://6.com", "http://7.com");
+            "http://1.com",
+            "http://2.com",
+            "http://3.com",
+            "http://4.com",
+            "http://5.com",
+            "http://6.com",
+            "http://7.com");
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            oldUrls, newUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            oldUrls,
+            newUrls,
             POLICY);
 
     assertThat(result).isPresent();
@@ -151,20 +183,38 @@ class SupersedeDeciderTest {
     int newScore = 88;
     Set<String> oldUrls =
         Set.of(
-            "http://1.com", "http://2.com", "http://3.com", "http://4.com", "http://5.com",
-            "http://6.com", "http://7.com", "http://8.com", "http://9.com", "http://10.com");
+            "http://1.com",
+            "http://2.com",
+            "http://3.com",
+            "http://4.com",
+            "http://5.com",
+            "http://6.com",
+            "http://7.com",
+            "http://8.com",
+            "http://9.com",
+            "http://10.com");
     // new에는 1~8만 있고 9,10은 없음 → 없는 것 2개, 비율 2/10 = 20% (30% 미만이므로 미발동)
     Set<String> newUrls =
         Set.of(
-            "http://1.com", "http://2.com", "http://3.com", "http://4.com", "http://5.com",
-            "http://6.com", "http://7.com", "http://8.com");
+            "http://1.com",
+            "http://2.com",
+            "http://3.com",
+            "http://4.com",
+            "http://5.com",
+            "http://6.com",
+            "http://7.com",
+            "http://8.com");
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            oldUrls, newUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            oldUrls,
+            newUrls,
             POLICY);
 
     assertThat(result).isEmpty();
@@ -179,10 +229,14 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            Set.of(), Set.of("http://a.com"),
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            Set.of(),
+            Set.of("http://a.com"),
             POLICY);
 
     assertThat(result).isEmpty();
@@ -200,17 +254,22 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 1, // tier 2 → 1
-            label(oldScore), label(newScore),
-            sameUrls, sameUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 1, // tier 2 → 1
+            label(oldScore),
+            label(newScore),
+            sameUrls,
+            sameUrls,
             POLICY);
 
     assertThat(result).isPresent();
     assertThat(result.get()).isEqualTo(SupersedeReason.TIER_CHANGED);
   }
 
-  // (U4b) oldScore null(비판정 — tier 3, oldLabel null), newLabel=MOSTLY_FACT(tier 3 → 2) → TIER_CHANGED
+  // (U4b) oldScore null(비판정 — tier 3, oldLabel null), newLabel=MOSTLY_FACT(tier 3 → 2) →
+  // TIER_CHANGED
   @Test
   @DisplayName("U4b TIER_CHANGED: 비판정(null)에서 SCORABLE로 승격 시 발동")
   void decide_returnsTIER_CHANGED_whenNewlyScorable() {
@@ -218,11 +277,10 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            null, 70,    // oldScore null = 비판정
+            null, 70, // oldScore null = 비판정
             (short) 3, (short) 2, // tier 3 → 2
-            null, label(70),     // oldLabel null = 비판정
-            sameUrls, sameUrls,
-            POLICY);
+            null, label(70), // oldLabel null = 비판정
+            sameUrls, sameUrls, POLICY);
 
     assertThat(result).isPresent();
     assertThat(result.get()).isEqualTo(SupersedeReason.TIER_CHANGED);
@@ -240,10 +298,14 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            sameUrls, sameUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            sameUrls,
+            sameUrls,
             POLICY);
 
     assertThat(result).isEmpty();
@@ -260,10 +322,14 @@ class SupersedeDeciderTest {
 
     Optional<SupersedeReason> result =
         SupersedeDecider.decide(
-            oldScore, newScore,
-            (short) 2, (short) 2,
-            label(oldScore), label(newScore),
-            sameUrls, sameUrls,
+            oldScore,
+            newScore,
+            (short) 2,
+            (short) 2,
+            label(oldScore),
+            label(newScore),
+            sameUrls,
+            sameUrls,
             POLICY);
 
     assertThat(result).isPresent();

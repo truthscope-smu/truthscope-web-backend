@@ -202,7 +202,7 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId)))
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
           .thenReturn(List.of(result));
 
       ArticleVerificationResponse response = service.getVerification(articleId);
@@ -225,7 +225,7 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId)))
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
           .thenReturn(List.of(result));
 
       ArticleVerificationResponse response = service.getVerification(articleId);
@@ -249,7 +249,7 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId)))
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
           .thenReturn(List.of(result));
 
       // NPE가 발생하지 않아야 함
@@ -282,7 +282,7 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId)))
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
           .thenReturn(List.of(result));
 
       ArticleVerificationResponse response = service.getVerification(articleId);
@@ -304,7 +304,7 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId)))
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
           .thenReturn(List.of(result));
 
       ArticleVerificationResponse response = service.getVerification(articleId);
@@ -326,7 +326,7 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId)))
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
           .thenReturn(List.of(result));
 
       ArticleVerificationResponse response = service.getVerification(articleId);
@@ -352,7 +352,7 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId)))
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
           .thenReturn(List.of(result));
 
       ArticleVerificationResponse response = service.getVerification(articleId);
@@ -444,7 +444,8 @@ class ArticleVerificationServiceTest {
       when(articleRepository.findById(articleId)).thenReturn(Optional.of(article));
       when(claimRepository.findByArticleIdOrderBySortOrderAsc(articleId))
           .thenReturn(List.of(claim));
-      when(verificationResultRepository.findByClaimIdIn(List.of(claimId))).thenReturn(List.of());
+      when(verificationResultRepository.findCurrentByClaimIdIn(List.of(claimId)))
+          .thenReturn(List.of());
 
       ArticleVerificationResponse response = service.getVerification(articleId);
 

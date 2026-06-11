@@ -16,12 +16,12 @@ import lombok.NoArgsConstructor;
  *   <li>LABEL_CHANGED: oldLabel != null &amp;&amp; newLabel != null &amp;&amp; oldLabel != newLabel
  *   <li>TIER_CHANGED: oldTier != newTier
  *   <li>SCORE_DRIFT: |newScore - oldScore| > scoreDriftThreshold (정확히 임계값이면 미발동 — "초과")
- *   <li>URL_REPLACEMENT: !oldUrls.isEmpty() &amp;&amp; 교체 비율 &gt;= urlReplacementRatio ("이상" —
- *       정확히 30%이면 발동)
+ *   <li>URL_REPLACEMENT: !oldUrls.isEmpty() &amp;&amp; 교체 비율 &gt;= urlReplacementRatio ("이상" — 정확히
+ *       30%이면 발동)
  * </ol>
  *
- * <p>경계 의미 비대칭: SCORE_DRIFT는 "초과"(임계값 미포함), URL_REPLACEMENT는 "이상"(임계값 포함). ADR-009
- * 원문("점수 차 15 초과" vs "30% 이상") 그대로 구현한다.
+ * <p>경계 의미 비대칭: SCORE_DRIFT는 "초과"(임계값 미포함), URL_REPLACEMENT는 "이상"(임계값 포함). ADR-009 원문("점수 차 15 초과"
+ * vs "30% 이상") 그대로 구현한다.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class SupersedeDecider {

@@ -268,7 +268,8 @@ class VerificationPipelineIntegrationTest {
       var claims = claimRepo.findByArticleId(articleId);
       assertThat(claims).hasSize(1);
 
-      var verificationOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+      var verificationOpt =
+          verificationResultRepo.findByClaimIdAndSupersededAtIsNull(claims.get(0).getId());
       assertThat(verificationOpt).isPresent();
       VerificationResult vr = verificationOpt.get();
       assertThat(vr.getTier()).isEqualTo((short) 1);
@@ -367,7 +368,8 @@ class VerificationPipelineIntegrationTest {
       var claims = claimRepo.findByArticleId(articleId);
       assertThat(claims).hasSize(1);
 
-      var verificationOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+      var verificationOpt =
+          verificationResultRepo.findByClaimIdAndSupersededAtIsNull(claims.get(0).getId());
       assertThat(verificationOpt).isPresent();
       VerificationResult vr = verificationOpt.get();
       assertThat(vr.getTier()).isEqualTo((short) 2);
@@ -601,12 +603,12 @@ class VerificationPipelineIntegrationTest {
       // SCORABLE → tier=1 / INSUFFICIENT_CANDIDATE → tier=3 INSUFFICIENT
       long tier1ResultCount =
           claims.stream()
-              .map(c -> verificationResultRepo.findByClaimId(c.getId()))
+              .map(c -> verificationResultRepo.findByClaimIdAndSupersededAtIsNull(c.getId()))
               .filter(opt -> opt.isPresent() && opt.get().getTier() == 1)
               .count();
       long tier3ResultCount =
           claims.stream()
-              .map(c -> verificationResultRepo.findByClaimId(c.getId()))
+              .map(c -> verificationResultRepo.findByClaimIdAndSupersededAtIsNull(c.getId()))
               .filter(opt -> opt.isPresent() && opt.get().getTier() == 3)
               .count();
       assertThat(tier1ResultCount).isEqualTo(1L);
@@ -669,7 +671,8 @@ class VerificationPipelineIntegrationTest {
       var claims = claimRepo.findByArticleId(articleId);
       assertThat(claims).hasSize(1);
 
-      var verificationOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+      var verificationOpt =
+          verificationResultRepo.findByClaimIdAndSupersededAtIsNull(claims.get(0).getId());
       assertThat(verificationOpt).isPresent();
       VerificationResult vr = verificationOpt.get();
       assertThat(vr.getTier()).isEqualTo((short) 3);
