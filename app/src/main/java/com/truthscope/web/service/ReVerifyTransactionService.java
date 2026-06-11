@@ -151,6 +151,15 @@ public class ReVerifyTransactionService {
 
     // 3. 입력 도출
     ClaimVerificationSignal newSignal = newResult.signal();
+    // claim 일치성 가드: 다른 claim 의 결과가 이 체인에 저장되는 무결성 오염 차단 (CodeRabbit #113)
+    if (!newSignal.claimId().equals(old.getClaim().getId())) {
+      log.error(
+          "재검증 결과 claim 불일치 — 체인 오염 차단: resultId={}, expectedClaimId={}, actualClaimId={}",
+          oldResultId,
+          old.getClaim().getId(),
+          newSignal.claimId());
+      return;
+    }
     Integer newScore = newSignal.score();
     short newTier = newSignal.tier();
     Integer oldScore = old.getScore() != null ? (int) old.getScore() : null;

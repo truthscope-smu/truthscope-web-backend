@@ -5,13 +5,17 @@
 -- 타입 근거: TIMESTAMP(6) = V1 표준(엔티티 LocalDateTime 정합, TIMESTAMPTZ 금지).
 -- CHECK 값 대문자 = V3 verdict, V6 tier3_reason CHECK 표준 정합.
 
-SET lock_timeout = '5s';
+SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE verification_results ADD COLUMN superseded_at TIMESTAMP(6);
 ALTER TABLE verification_results ADD COLUMN superseded_by_result_id UUID REFERENCES verification_results(id);
 ALTER TABLE verification_results ADD COLUMN supersede_reason VARCHAR(30)
     CHECK (supersede_reason IN ('LABEL_CHANGED','SCORE_DRIFT','URL_REPLACEMENT',
                                 'TIER_CHANGED','USER_REPORT','SCHEDULED_REVERIFY'));
+
+-- supersede 상태 일관성: 마킹된 행은 반드시 사유를 갖는다 (둘 다 NULL이거나 둘 다 NOT NULL)
+ALTER TABLE verification_results ADD CONSTRAINT chk_vr_supersede_pair
+    CHECK ((superseded_at IS NULL) = (supersede_reason IS NULL));
 ALTER TABLE verification_results ADD COLUMN original_result_id UUID REFERENCES verification_results(id);
 ALTER TABLE verification_results ADD COLUMN last_confirmed_at TIMESTAMP(6);
 
