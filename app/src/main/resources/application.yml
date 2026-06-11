@@ -89,6 +89,10 @@ truthscope:
     tier1-hit-required: true
     critical-field-cap-percent: 50
     claim-split-fields: ["수치", "일자", "대상", "금액", "제도명"]
+  reverify:
+    cooldown: PT10M
+    score-drift-threshold: 15
+    url-replacement-ratio: 0.30
   url-validator:
     connect-timeout: PT5S
     read-timeout: PT5S

@@ -104,7 +104,7 @@ public class ArticleVerificationService {
     }
     List<UUID> claimIds = claims.stream().map(Claim::getId).toList();
     Map<UUID, VerificationResult> resultMap =
-        verificationResultRepository.findByClaimIdIn(claimIds).stream()
+        verificationResultRepository.findCurrentByClaimIdIn(claimIds).stream()
             .collect(Collectors.toMap(r -> r.getClaim().getId(), Function.identity()));
 
     // 66b T8: VerifySource bulk 조회 (N+1 방지)

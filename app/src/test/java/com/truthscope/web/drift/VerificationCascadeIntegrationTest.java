@@ -190,7 +190,8 @@ class VerificationCascadeIntegrationTest {
     var claims = claimRepo.findByArticleId(response.getArticleId());
     assertThat(claims).hasSize(1);
 
-    var resultOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+    var resultOpt =
+        verificationResultRepo.findByClaimIdAndSupersededAtIsNull(claims.get(0).getId());
     assertThat(resultOpt).isPresent();
 
     VerificationResult result = resultOpt.get();
@@ -269,7 +270,8 @@ class VerificationCascadeIntegrationTest {
     var claims = claimRepo.findByArticleId(response.getArticleId());
     assertThat(claims).hasSize(1);
 
-    var resultOpt = verificationResultRepo.findByClaimId(claims.get(0).getId());
+    var resultOpt =
+        verificationResultRepo.findByClaimIdAndSupersededAtIsNull(claims.get(0).getId());
     assertThat(resultOpt).isPresent();
     assertThat(resultOpt.get().getTier()).isEqualTo((short) 3);
     // Tier 3 score 는 반드시 null (domain-logic.md Tier 3 원칙)

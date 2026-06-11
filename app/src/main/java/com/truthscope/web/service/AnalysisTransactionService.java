@@ -12,9 +12,8 @@ import com.truthscope.web.entity.VerificationResult;
 import com.truthscope.web.entity.VerifySource;
 import com.truthscope.web.entity.enums.ClaimImportance;
 import com.truthscope.web.entity.enums.SessionStatus;
-import com.truthscope.web.entity.enums.Tier3Reason;
-import com.truthscope.web.entity.enums.Verdict;
 import com.truthscope.web.exception.NotFoundException;
+import com.truthscope.web.factory.VerificationResultFactory;
 import com.truthscope.web.repository.AnalysisSessionRepository;
 import com.truthscope.web.repository.ArticleRepository;
 import com.truthscope.web.repository.ClaimRepository;
@@ -23,7 +22,6 @@ import com.truthscope.web.repository.VerifySourceRepository;
 import com.truthscope.web.scoring.ArticleFactScore;
 import com.truthscope.web.scoring.ClaimCascadeResult;
 import com.truthscope.web.scoring.ClaimDraft;
-import com.truthscope.web.scoring.ClaimScoreStatus;
 import com.truthscope.web.scoring.ClaimVerificationSignal;
 import com.truthscope.web.scoring.CoverageSummary;
 import com.truthscope.web.scoring.EvidenceSnapshot;
@@ -179,7 +177,7 @@ public class AnalysisTransactionService {
       List<EvidenceSnapshot> evidence = cascadeResults.get(i).evidence();
       VerificationResult saved =
           verificationResultRepository.save(
-              buildResult(signals.get(i), savedClaims.get(i), evidence));
+              VerificationResultFactory.buildResult(signals.get(i), savedClaims.get(i), evidence));
       List<VerifySource> rows = VerifySourceConverter.toEntities(saved, evidence);
       verifySourceRepository.saveAll(rows);
     }
@@ -222,78 +220,12 @@ public class AnalysisTransactionService {
   }
 
   /**
-   * ClaimScoreStatus를 Tier3Reason으로 매핑한다.
+   * evidence stance 다수결 — CONTRADICTED 수가 SUPPORTED 수보다 많으면 true (null/빈 리스트는 false).
    *
-   * <p>SCORABLE(Tier 1/2)은 tier3_reason = NULL (V6 CHECK 정합).
-   *
-   * @param status ClaimVerificationSignal 의 status
-   * @return Tier3Reason 또는 null (SCORABLE)
+   * <p>기존 테스트 호환성을 위해 package-private static 위임 메서드를 유지한다. 실제 로직은
+   * VerificationResultFactory.isMajorityContradicted 에 위치한다.
    */
-  private Tier3Reason mapTier3Reason(ClaimScoreStatus status) {
-    return switch (status) {
-      case INSUFFICIENT -> Tier3Reason.INSUFFICIENT;
-      case TIME_SENSITIVE -> Tier3Reason.TIME_SENSITIVE;
-      case OUT_OF_SCOPE -> Tier3Reason.OUT_OF_SCOPE;
-      case SCORABLE -> null;
-    };
-  }
-
-  /**
-   * status와 evidence stance를 Verdict로 매핑한다. SCORABLE은 evidence 다수결: 반박이 뒷받침보다 많으면 CONTRADICTED, 그
-   * 외(동률·evidence 없음 포함)는 SUPPORTED. verdict 컬럼 NOT NULL이라 모든 status에 값을 반환한다.
-   */
-  private Verdict mapVerdict(ClaimScoreStatus status, List<EvidenceSnapshot> evidence) {
-    return switch (status) {
-      case SCORABLE -> isMajorityContradicted(evidence) ? Verdict.CONTRADICTED : Verdict.SUPPORTED;
-      case INSUFFICIENT -> Verdict.INSUFFICIENT;
-      case TIME_SENSITIVE -> Verdict.TIME_SENSITIVE;
-      case OUT_OF_SCOPE -> Verdict.OUT_OF_SCOPE;
-    };
-  }
-
-  /** evidence stance 다수결 — CONTRADICTED 수가 SUPPORTED 수보다 많으면 true (null/빈 리스트는 false). */
   static boolean isMajorityContradicted(List<EvidenceSnapshot> evidence) {
-    if (evidence == null || evidence.isEmpty()) {
-      return false;
-    }
-    long contradicted = evidence.stream().filter(e -> "CONTRADICTED".equals(e.stance())).count();
-    long supported = evidence.stream().filter(e -> "SUPPORTED".equals(e.stance())).count();
-    return contradicted > supported;
-  }
-
-  /**
-   * 단일 ClaimVerificationSignal을 VerificationResult entity로 변환한다 (R1-8 score 변환 + R2-6 disclaimer +
-   * verdict/tier3Reason/reason 매핑 포함).
-   */
-  private VerificationResult buildResult(
-      ClaimVerificationSignal signal, Claim claim, List<EvidenceSnapshot> evidence) {
-    Short shortScore =
-        signal.score() == null ? null : (short) Math.min(100, Math.max(0, signal.score()));
-    String disclaimer = signal.tier() == 2 ? "AI 분석이며 기관 검증이 아닙니다. 참고 용도로만 활용하세요." : null;
-    return VerificationResult.builder()
-        .claim(claim)
-        .tier(signal.tier())
-        .score(shortScore)
-        .verdict(mapVerdict(signal.status(), evidence))
-        .tier3Reason(mapTier3Reason(signal.status()))
-        .reason(buildReason(signal))
-        .disclaimer(disclaimer)
-        .verifiedAt(LocalDateTime.now())
-        .build();
-  }
-
-  /**
-   * VerificationResult.reason (NOT NULL TEXT) 의 v1.x 기본 메시지를 생성한다.
-   *
-   * <p>Tier 1: 팩트체크 기관 매칭 / Tier 2: 다중 출처 cascade / Tier 3: Validator 미판정 사유. µ2.5 이후 cascade trace
-   * 메타데이터를 활용해 정밀 사유로 교체 예정.
-   */
-  private String buildReason(ClaimVerificationSignal signal) {
-    return switch (signal.status()) {
-      case SCORABLE -> signal.tier() == 1 ? "Tier 1 팩트체크 기관 매칭 결과" : "Tier 2 다중 출처 cascade 검증 결과";
-      case INSUFFICIENT -> "Tier 3 검증 출처 부족";
-      case TIME_SENSITIVE -> "Tier 3 시점 의존성으로 검증 보류";
-      case OUT_OF_SCOPE -> "Tier 3 검증 범위 외 claim";
-    };
+    return VerificationResultFactory.isMajorityContradicted(evidence);
   }
 }
