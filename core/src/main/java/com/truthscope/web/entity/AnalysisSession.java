@@ -74,6 +74,32 @@ public class AnalysisSession extends BaseTimeEntity {
   }
 
   /**
+   * 재검증 후 집계 필드만 갱신한다 — 최초 완료 시각 보존, ADR-009 이력 원칙.
+   *
+   * <p>status 와 completedAt 은 변경하지 않는다. ArticleFactScoreAggregator + CoverageAggregator 재실행 결과를 기존
+   * 세션에 덮어쓸 때 사용한다.
+   *
+   * @param totalScore Phase 55 ArticleFactScoreAggregator 결과 Short(0..100), 검증 가능 claim 없으면 null
+   * @param coverage CoverageAggregator 집계 결과 (non-null)
+   * @param tier1Count Tier 1 signal 수
+   * @param tier2Count Tier 2 signal 수
+   * @param tier3Count Tier 3 signal 수
+   */
+  public void updateAggregates(
+      Short totalScore,
+      CoverageSummary coverage,
+      Short tier1Count,
+      Short tier2Count,
+      Short tier3Count) {
+    this.totalScore = totalScore;
+    this.coverage = coverage;
+    this.tier1Count = tier1Count;
+    this.tier2Count = tier2Count;
+    this.tier3Count = tier3Count;
+    // status 와 completedAt 은 의도적으로 변경하지 않는다.
+  }
+
+  /**
    * Wave 2 cascade 영속화 완료 후 세션 집계 필드를 갱신하고 상태를 COMPLETED로 전이한다.
    *
    * <p>@Setter 없음 원칙 준수 — AnalysisTransactionService.persistCascadeResults 가 호출. totalScore /
