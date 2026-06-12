@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
  * 미접근.
  *
  * <p>흐름: 1) EvidenceWindowResolver 로 날짜 윈도우 결정. 2) DataGoKrAdapter.fetchPolicyItems 로 정책뉴스/보도자료 수집.
- * 2b) NaverSearchAdapter.search 로 보조 Tier-1 출처 수집 후 URL dedupe 병합. 3) EvidencePrefilter.top 으로
+ * 2b) NaverSearchAdapter.search 로 Tier 2 보조 출처 수집 후 URL dedupe 병합. 3) EvidencePrefilter.top 으로
  * claim 핵심어 기반 top-8 후보 추출. 4) FidelityClassifierPort.classify 로 SUPPORTED/CONTRADICTED +
  * matchedFields 보유분만 반환. 예외/빈결과 시 빈 List (Tier 3 안전강하).
  */
@@ -71,7 +71,7 @@ public class HybridCascadeService {
       // 2) data.go.kr 정책뉴스 + 보도자료 수집 (날짜 덤프)
       List<DataGoKrPolicyItem> items = dataGoKrAdapter.fetchPolicyItems(from, to);
 
-      // 2b) Naver 뉴스 검색 (보조 Tier-1 출처) — URL 기준 dedupe 병합.
+      // 2b) Naver 뉴스 검색 (Tier 2 보조 출처) — URL 기준 dedupe 병합.
       // Naver 는 날짜 윈도우 밖 post-retrieval 병합 경로이므로 window 미적용이 아키텍처상 정상이다.
       List<DataGoKrPolicyItem> naverItems = naverSearchAdapter.search(claimText);
       LinkedHashMap<String, DataGoKrPolicyItem> mergeMap = new LinkedHashMap<>();

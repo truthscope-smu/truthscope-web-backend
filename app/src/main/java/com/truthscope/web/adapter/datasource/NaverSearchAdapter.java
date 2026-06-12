@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /**
- * Naver News Search API 어댑터 (Phase 72 보조 Tier-1 출처).
+ * Naver News Search API 어댑터 (Tier 2 보조 출처 — 독립 언론 보도 교차 확인용).
  *
  * <p>plain @Component, @Transactional 없음 (RC-01). 실패 시 빈 리스트 반환 (Tier 3 안전강하). 인증키:
  * truthscope.datasource.naver-client-id / naver-client-secret (application-local.yml 주입). 빈 키이면 API
