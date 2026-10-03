@@ -2,7 +2,8 @@
 
 > 모든 AI 도구 (Codex CLI / GitHub Copilot / Cursor / Claude Code 등) 공통 instruction.
 > 사람이 보는 상세 절차서는 `docs/guides/` 참조.
-> Claude Code 세부 규칙은 `CLAUDE.md` 보존 (본 파일과 정합 유지).
+> Claude Code도 본 파일을 직접 읽는다. 기존 `CLAUDE.md` 규칙은 8장으로 통합했다 (2026-10-03).
+> 상세 가이드: `CONVENTIONS.md`.
 
 ---
 
@@ -122,3 +123,75 @@ Co-authored-by 의무 (PM 본인): `Co-authored-by: KWONSEOK02 <gwonseok02@gmail
 - BE #20 SSRF Week 1 blocker 격상 + 최소 정책 PR (멤버 작업 진입 전)
 - BE #22 DataSourceAdapter scaffold reference 작성 → `docs/guides/backend-datasource-adapter.md` 박제
 - D7 90분 onboarding session 일정 공지 (Phase 21 DDD/TDD 패턴 walk-through)
+
+---
+
+## 8. 코딩 규칙 세부 (CLAUDE.md에서 통합, 2026-10-03)
+
+1장과 2장에 같은 뜻이 있는 규칙은 옮기지 않았다. 아래는 1장과 2장에 없거나 어긋나는 규칙이다.
+
+### 기술 스택
+- Spring Boot 3.x (Java 17+)
+- JPA / Hibernate + Supabase PostgreSQL
+- Lombok
+
+### 엔드포인트
+- 모든 API는 `/api/v1/{자원복수형}`이다. `/api`만 쓰지 않는다.
+- URI는 소문자만 쓴다 (동사 금지, 복수형 명사, 하이픈 구분은 2장 Controller 참조).
+- PUT은 전체 교체에만 쓰고 대부분 PATCH를 쓴다.
+
+### 레이어 규칙
+- 의존 방향은 Controller, Service, Repository, Entity 순이다. 역방향을 금지한다.
+- Controller는 URL 매핑과 요청, 응답만 맡는다. 비즈니스 로직을 넣지 않는다.
+- Converter는 Service에서 호출한다. Controller에서 호출하지 않는다.
+
+### 클래스와 파일 네이밍
+
+| 대상 | 규칙 | 예시 |
+|------|------|------|
+| Controller | `{도메인}Controller` | `NewsController` |
+| Service | `{기능}Service` | `ContentExtractService` |
+| Repository | `{Entity}Repository` | `ArticleRepository` |
+| Entity | 테이블명 단수형 PascalCase | `Member`, `AnalysisSession` |
+| DTO 요청 | `{도메인}Request` | `AnalysisRequest` |
+| DTO 응답 | `{도메인}Response` | `ArticleResponse` |
+| Converter | `{도메인}Converter` | `ArticleConverter` |
+
+### Entity 보충
+- `@Builder`와 `@AllArgsConstructor`의 접근 수준은 2장 Entity와 어긋난다. 아래 "CLAUDE.md 원문 (어긋남)" 참조.
+
+### 응답 형식
+- 에러 본문은 `{ status, statusCode, message }`이다 (2장 Exception과 동일).
+- 페이지네이션은 VIA_DTO 모드를 쓴다. 커스텀 `PageResponse`를 만들지 않는다.
+
+### 환경 설정
+- `.env` 파일을 쓰지 않는다. `application.yml`과 `application-local.yml`을 쓴다.
+- `application-local.yml`은 Git에 올리지 않는다.
+
+### 포맷
+- Google Java Format(Spotless)을 쓴다. 빌드 전에 `./gradlew spotlessApply`를 반드시 적용한다.
+
+### spike (throwaway 연구 코드), 2026-05-04 워크스페이스 레벨로 분리
+이전에는 `app/src/spike/` sourceSet이었으나 BE 빌드 파이프라인과 격리가 어려워(CodeRabbit 정책 위반 nitpick, spotbugsTest false positive 등) 워크스페이스 레벨로 외부화했다.
+
+| 항목 | 값 |
+|---|---|
+| 위치 | `truthscope-web/spike/` (BE/FE repo 외부, 워크스페이스 루트) |
+| 빌드 | 자체 `settings.gradle` + `build.gradle` (plain Java 17 + JUnit 5 + AssertJ + jsoup + Jackson) |
+| Spring 의존 | 0. 본 BE의 어떤 빌드 task에도 포함되지 않음 |
+| git 추적 | 없음 (워크스페이스 자체가 git이 아님) |
+| 사용법, 정책, 신규 spike 추가 절차 | `truthscope-web/spike/README.md` 참조 |
+| 결과물 기록 | 옵시디언/Notion 또는 `.plans/{N}-*/pm-spike/` (이전 위치 그대로) |
+
+BE repo 안에서는 spike 관련 build.gradle 항목, `.gitignore` 룰, `app/src/spike/` 디렉토리가 모두 제거됐다. 이 절은 위치 안내만 남긴다.
+
+### Gemini 모델 (변경 금지)
+- 1순위는 `gemini-3.1-flash-lite`다 (2026-05-27 GA 전환으로 `-preview` 제거).
+- 2순위 폴백은 `gemini-2.5-flash-lite`다.
+- `gemini-2.0-flash-lite`는 언급도 사용도 금지다 (1장과 동일).
+
+### CLAUDE.md 원문 (어긋남, 둘 다 보존)
+1장과 2장의 문구와 CLAUDE.md 문구가 다르다. 팀 검토 전까지 둘 다 남긴다.
+- Entity 생성자: CLAUDE.md는 `@Builder` + `@AllArgsConstructor`(접근 수준 지정 없음)였고, 2장은 `@Builder(access = PRIVATE)` + `@AllArgsConstructor(access = PRIVATE)`이다.
+- `BaseTimeEntity` 예외: CLAUDE.md는 `ApiUsageLog`만 예외였고, 2장은 `ApiUsageLog`, `VerificationTrace`, `DataSourceSnapshot` 3종이다.
+- `@Data`, `@ToString` 금지 범위: CLAUDE.md는 Entity 구분 없이 절대 금지였고, 1장은 Entity에 한정한다.
